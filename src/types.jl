@@ -4,5 +4,4 @@ typealias DemeIndex Uint8
 typealias Generation Uint
 typealias EventType Uint8
 
-abstract Female
-abstract Male
+abstract Organism

@@ -1,173 +1,123 @@
-immutable Parents
-    moms::(Vector{(DemeIndex, Int)}, Vector{DemeIndex, Int})
-    pops::(Vector{(DemeIndex, Int)}, Vector{DemeIndex, Int})
-end
-function Parents(n::(Int, Int))
-    f = (Array((DemeIndex, Int), n[1]), Array((DemeIndex, Int), n[2]))
-    m = (Array((DemeIndex, Int), n[1]), Array((DemeIndex, Int), n[2]))
-    Parents(f, m)
-end
-immutable ParentsIds
-    tofem::Parents
-    tomale::Parents
-end
-function ParentsIds(nf::(Int, Int), nm::(Int, Int))
-    ParentsIds(Parents(nf), Parents(nm))
+immutable Organisms{T<:Organism}
+    size::(Int, Int)
+    fit::Vector{Float64}
+    trait::Vector{DemeIndex}
+    data::Vector{T}
 end
 
-function learn(deme::DemeIndex, f::DemeIndex, m::DemeIndex, fr::Float64, mr::Float64)
-    if deme == f == m
-        deme
-    else
-        r = (deme == f ? 1.0 : 1 - fr) * (deme == m ? 1.0 : 1 - mr)
-        rand() < r ? deme : 3 - deme
-    end
+immutable Population
+    f::Organisms{Female}
+    m::Organisms{Male}
 end
 
-function learn!{T<:Organisms}(c::T, par::Population,
-    pids::ParentsIds,
+function Population(nf::(Int, Int), nm::(Int, Int))
+    ffit = Array(Float64, sum(nf))
+    mfit = Array(Float64, sum(nm))
+
+    ft = vcat([fills(convert(DemeIndex, i), j) for (i, j) = enumerate(nf)]...)
+    mt = vcat([fills(convert(DemeIndex, i), j) for (i, j) = enumerate(nm)]...)
+
+    f = Organisms{Female}(nf, ffit, ft, [Female() for _ = sum(nf)])
+    m = Organisms{Male}(nm, mfit, mt, [Male() for _ = sum(nm)])
+
+    Population(f, m)
+end
+
+Base.getindex(p::Population, ::Type{Female}) = p.f
+Base.getindex(p::Population, ::Type{Male}) = p.m
+
+immutable ParentIds
+    data::Matrix{Int}
+end
+ParentIds(n::(Int, Int)) = ParentIds(Array(Int, sum(n), 2))
+ParentIds(n::Int) = ParentIds(Array(Int, n, 2))
+
+Base.getindex(p::ParentIds, i) = p.data[i, :]
+Base.getindex(p::ParentIds, i, j) = p.data[i, j]
+
+function learn!{T<:Organism}(c::Organisms{T}, par::Population,
+    pids::ParentIds,
     fr::(Float64, Float64),
     mr::(Float64, Float64))
-    for deme = 1:2
-        ct = c.trait[deme]
-        momt = par.f.trait
-        popt = par.m.trait
-        momids = pids.tofem[deme]
-        popids = pids.tomale[deme]
-        for i = 1:length(ct)
-            mdeme, mid = momoids[i]
-            pdeme, pid = popids[i]
-            ct[i] = learn(deme, momt[mdeme][mid], popt[pdeme][pid], fr[deme], mr[deme])
-        end
+    for i = 1:length(c.data)
+        deme = i <= c.size[1] ? 1 : 2
+        fid, mid = pids[i]
+        c.trait[i] = learn(deme, par.f.trait[fid], par.m.trait[mid], fr[deme], mr[deme])
     end
     nothing
 end
 
 function learn!(c::Population, p::Population,
-        pids::ParentsIds,
-        fr::(Float64, Float64),
-        mr::(Float64, Float64))
-    learn!(c.f, p, pids.tofem, fr, fm)
-    learn!(c.m, p, pids.tomale, fr, fm)
+    pids::(ParentIds, ParentIds),
+    ftof::(Float64, Float64),
+    mtof::(Float64, Float64),
+    ftom::(Float64, Float64),
+    mtom::(Float64, Float64))
+    learn!(c.f, p, pids[1], ftof, mtof)
+    learn!(c.m, p, pids[2], ftom, mtom)
     nothing
 end
 
-function fitness(deme::DemeIndex, trait::DemeIndex, r1::Float64, r2::Float64)
-    deme == trait ? r1 : r2
-end
-
-function fitness!{T<:Organisms}(p::T, r1::Float64, r2::Float64)
-    for deme = 1:2
-        f = p.fit[deme]
-        t = p.trait[deme]
+function fitness!{T<:Organism}(p::Organisms{T}, r1::Float64, r2::Float64)
+    for i = 1:length(p.data)
+        deme = i <= p.size[1] ? 1 : 2
         rd1, rd2 = deme == 1 ? (1.0, r1) : (r2, 1.0)
-        for i = 1:p.size[1]
-            f[i] = fitness(deme, t[i], rd1, rd2)
-        end
+        p.fit[i] = fitness(deme, p.trait[i], rd1, rd2)
     end
     nothing
 end
 
-function reproduction!{T<:Organisms}(c::T, mom::Females, pop::Males,
-    f::Vector{(DemeIndex, Int), (DemeIndex, Int)},
-    m::Vector{(DemeIndex, Int), (DemeIndex, Int)})
-    for deme = 1:2
+function fitness!(p::Population, fr::(Float64, Float64), mr::(Float64, Float64))
+    fitness!(p.f, fr...)
+    fitness!(p.m, mr...)
 end
 
-abstract Organism
+function reproduce!{T<:Organism}(t::Generation, c::Organisms{T}, p::Population,
+    pid::ParentIds,
+    mut::Float64,
+    rec::GeneStateRecorder)
 
-immutable Female <: Organism
-    auto::(Gene, Gene)
-    x::(Gene, Gene)
-    mito::Gene
-end
-
-function Female(rec::GeneStateRecorder)
-    Female((getnewgene(rec), getnewgene(rec)),
-        (getnewgene(rec), getnewgene(rec)),
-        getnewgene(rec))
-end
-
-function Female(t::Generation, mom::Female, pop::Male, mut::Float64, rec::GeneStateRecorder)
-    g = Arrray(Gene, 5)
-    g[1] = rand() < 0.5 ? mom.auto[1] : mom.auto[2]
-    g[2] = rand() < 0.5 ? mom.x[1] : mom.x[2]
-    g[3] = mom.mito
-    g[4] = rand() < 0.5 ? pop.auto[1] : pop.auto[2]
-    g[5] = pop.x
-    for i = 1:5
-        g[i] = rand() < mut ? mutate!(t, g[i], rec) : g[i]
+    sep = c.size[1]
+    for i = 1:length(c.data)
+        cdeme = i < sep ? 1 : 2
+        fid, mid = pid[i]
+        fdeme = fid <= sep ? 1 : 2
+        mdeme = mid <= sep ? 1 : 2
+        f = p.f.data[fid]
+        m = p.m.data[mid]
+        mom = cdeme == fdeme ? f : migrate!(t, f, rec)
+        pop = cdeme == mdeme ? m : migrate!(t, m, rec)
+        c[i] = T(t, mom, pop, mut, rec)
     end
-    Female((g[1], g[4]), (g[2], g[4]), g[5])
 end
 
-immutable Male <: Organism
-    auto::(Gene, Gene)
-    x::Gene
-    y::Gene
+function reproduce!(t::Generation, c::Population, p::Population,
+    pid::(ParentIds, ParentIds),
+    mut::Float64,
+    rec::GeneStateRecorder)
+    reproduce!(t, c.f, p, pid[1], mut, rec)
+    reproduce!(t, c.m, p, pid[2], mut, rec)
+    nothing
 end
 
-function Male(rec::GeneStateRecorder)
-    Male((getnewgene(rec), getnewgene(rec)),
-        getnewgene(rec),
-        getnewgene(rec))
-end
-
-function Male(t::Generation, mom::Female, pop::Male, mut::Float64, rec::GeneStateRecorder)
-    g = Array(Gene, 4)
-    g[1] = rand() < 0.5 ? mom.auto[1] : mom.auto[2]
-    g[2] = rand() < 0.5 ? mom.x[1] : mom.x[2]
-    g[3] = rand() < 0.5 ? pop.auto[1] : pop.auto[2]
-    g[4] = pop.y
-    for i = 1:4
-        g[i] = rand() < mut ? mutate!(t, g[i], rec) : g[i]
+function pickparents!{T<:Organism}(::Type{T}, ids::ParentIds, pop::Population, fb::(Float64, Float64), mb::(Float64, Float64))
+    cs = pop[T].size
+    fs = pop[Female].size
+    ms = pop[Male].size
+    fwv = (weight(pop[Female].fit[1:fs[1]]), weight(pop[Female].fit[fs[1]+1:end]))
+    mwv = (weight(pop[Male].fit[1:ms[1]]), weight(pop[Male].fit[ms[1]+1:end]))
+    fr = (fb[1], 1 - fb[2])
+    mr = (mb[1], 1 - mb[2])
+    for i = 1:length(ids)
+        deme = i <= cs[1] ? 1 : 2
+        ids[i,1] = rand() < fr[deme] ? sample(fwv[1]) : sample(fwv[2]) + fs[1]
+        ids[i,2] = rand() < mr[deme]? sample(mwv[1]) : sample(mwv[2]) + ms[1]
     end
-    Male((g[1], g[3]), (g[2], g[4]))
+    nothing
 end
 
-function migrate!(t::Generation, p::Female, rec::GeneStateRecorder)
-    a = (migrate!(t, p.auto[1], rec), migrate!(t, p.auto[2], rec))
-    x = (migrate!(t, p.x[1], rec), migrate!(t, p.x[2], rec))
-    m = migrate!(t, p.mito, rec)
-    Female(a, x, m)
-end
-
-function migrate!(t::Generation, p::Male, rec::GeneStateRecorder)
-    a = (migrate!(t, p.auto[1], rec), migrate!(t, p.auto[2], rec))
-    x = migrate!(t, p.x, rec)
-    y = migrate!(t, p.y, rec)
-    Male(a, x, y)
-end
-
-abstract Organisms
-type Females <: Organisms
-    size::(Int, Int)
-    fit::(Vector{Float64}, Vector{Float64})
-    trait::(Vector{DemeIndex}, Vector{DemeIndex})
-    data::Vector{Female}
-end
-
-type Males <: Organisms
-    size::(Int, Int)
-    fit::(Vector{Float64}, Vector{Float64})
-    trait(Vector{DemeIndex}, Vector{DemeIndex})
-    data::Vector{Male}
-end
-
-immutable Population
-    f::Females
-    m::Males
-end
-
-function Population(nf::(Int, Int), nm::(Int, Int))
-    ffit = tuple([Array(Float64, n) for n = nf]...)
-    mfit = tuple([Array(Float64, n) for n = nm]...)
-
-    ft = tuple([fills(convert(DemeIndex, i), j) for (i, j) = enumerate(nf)]...)
-    mt = tuple([fills(convert(DemeIndex, i), j) for (i, j) = enumerate(nm)]...)
-
-    f = Females(nf, ffit, ft)
-    m = Males(nm, mfit, mt)
-
-    Population(f, m)
+function pickparents!(ids::(ParentIds, ParentIds), pop::Population, fb::(Float64, Float64), mb::(Float64, Float64))
+    pickparents!(Female, ids[1], pop, fb, mb)
+    pickparents!(Male, ids[2], pop, fb, mb)
+    nothing
 end

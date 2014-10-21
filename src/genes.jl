@@ -1,3 +1,5 @@
+export Gene, Change, GeneStateRecorder, id, mig, from, to, gen, migrate!, mutate!
+
 const MUTATION = 0x0
 const MIGRATION = 0x1
 
@@ -9,9 +11,9 @@ id(g::Gene) = g.id
 mig(g::Gene) = g.mig
 
 immutable Change
+    gen::Generation
     from::StateIndex
     to::StateIndex
-    gen::Generation
     kind::EventType
 end
 from(c::Change) = c.from
@@ -34,28 +36,28 @@ type GeneStateRecorder
     cursize::Int
 end
 
-function GeneStateRecorder(step::Int)
+function GeneStateRecorder(step)
     vec = Array(Change, 0)
     sizehint(vec, step)
     GeneStateRecorder(0, vec, step, step)
 end
 
-function mutate!(t::Generation, orig::Gene, st::GeneStateRecorder)
+function mutate!(t, orig::Gene, st::GeneStateRecorder)
     growifnecessary!(st)
     st.next += 1
-    push!(st.data, Change(orig.id, st.next, t, MUTATION))
+    push!(st.data, Change(t, orig.id, st.next, MUTATION))
     Gene(st.next, orig.mig)
 end
 
-function migrate!(t::Generation, g::Gene, st::GeneStateRecorder)
+function migrate!(t, g::Gene, st::GeneStateRecorder)
     growifnecessary!(st)
     st.next += 1
-    push!(st.data, Change(g.mig, st.next, MIGRATION))
+    push!(st.data, Change(t, g.mig, st.next, MIGRATION))
     Gene(g.id, st.next)
 end
 
 function growifnecessary!(st::GeneStateRecorder)
-    if length(st.data) == st.cursize
+    if st.next == st.cursize
         st.incr *= 2
         st.cursize += st.incr
         sizehint(st.data, st.cursize)
