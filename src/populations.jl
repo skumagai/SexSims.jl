@@ -59,14 +59,14 @@ function fitness!{T<:Organism}(p::Organisms{T}, r1::Float64, r2::Float64)
     nothing
 end
 
-function reproduce!{T<:Organism}(t::Generation, c::Organisms{T}, p::Population,
+function reproduce!{T<:Organism}(t, c::Organisms{T}, p::Population,
     pid::ParentIds,
     mut::Float64,
     rec::GeneStateRecorder)
 
     sep = c.size[1]
     for i = 1:length(c.data)
-        cdeme = i < sep ? 1 : 2
+        cdeme = i <= sep ? 1 : 2
         fid, mid = pid[i]
         fdeme = fid <= sep ? 1 : 2
         mdeme = mid <= sep ? 1 : 2

@@ -24,7 +24,7 @@ function Female(t, mom::Female, pop::Male, mut::Float64, rec::GeneStateRecorder)
     for i = 1:5
         g[i] = rand() < mut ? mutate!(t, g[i], rec) : g[i]
     end
-    Female((g[1], g[4]), (g[2], g[4]), g[5])
+    Female((g[1], g[4]), (g[2], g[5]), g[3])
 end
 
 function Male(t, mom::Female, pop::Male, mut::Float64, rec::GeneStateRecorder)
