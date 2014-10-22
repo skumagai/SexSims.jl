@@ -74,11 +74,11 @@ function reproduce!{T<:Organism}(t, c::Organisms{T}, p::Population,
         m = p.m.data[mid]
         mom = cdeme == fdeme ? f : migrate!(t, f, rec)
         pop = cdeme == mdeme ? m : migrate!(t, m, rec)
-        c[i] = T(t, mom, pop, mut, rec)
+        c.data[i] = T(t, mom, pop, mut, rec)
     end
 end
 
-function reproduce!(t::Generation, c::Population, p::Population,
+function reproduce!(t, c::Population, p::Population,
     pid::(ParentIds, ParentIds),
     mut::Float64,
     rec::GeneStateRecorder)
@@ -87,6 +87,7 @@ function reproduce!(t::Generation, c::Population, p::Population,
     nothing
 end
 
+# The rate parameter (r) is given as the proportion of parents selected from the first deme.
 function pickparents!(col, ids::ParentIds, w1::WeightVec, w2::WeightVec, r::(Float64, Float64))
     offset = 0
     for (deme, w) = enumerate((w1, w2))

@@ -50,8 +50,8 @@ end
 
 pids = SexSims.ParentIds(10)
 par = Population((5, 5), (5, 5))
-# par[Female].trait[:] = [1, 1, 1, 2, 2, 1, 1, 2, 2, 2]
-# par[Male].trait[:] = [2, 2, 2, 1, 1, 2, 2, 1, 1, 1]
+c = Population((5, 5), (5, 5))
+rec = GeneStateRecorder(1000)
 par[Female].fit[:] = [1, 1, 1, 0.5, 0.5, 1.5, 1.5, 1, 1, 1]
 par[Male].fit[:] = [1.5, 1.5, 1.5, 1, 1, 1, 1, 0.5, 0.5, 0.5]
 
@@ -60,8 +60,19 @@ datam = [0 for _ = 1:10n]
 for rate = rates
     for i = 1:n
         SexSims.pickparents!((5, 5), pids, par, (rate, 1 - rate), (1 - rate, rate))
+        SexSims.reproduce!(1, c.f, par, pids, rate, rec)
         dataf[10(i-1)+1:10i] = pids.data[:,1]
         datam[10(i-1)+1:10i] = pids.data[:,2]
+        for j = 1:10
+            cond = j <= 5 ? <= : >
+            f = cond(pids[j, 1], 5) ? == : !=
+            @test f(mig(c[Female].data[j].auto[1]), 0x0)
+            @test f(mig(c[Female].data[j].x[1]), 0x0)
+            @test f(mig(c[Female].data[j].mito), 0x0)
+            f = cond(pids[j,2], 5) ? == : !=
+            @test f(mig(c[Female].data[j].auto[2]), 0x0)
+            @test f(mig(c[Female].data[j].x[2]), 0x0)
+        end
     end
     fracf = countnz(dataf .<= 5) / 10n
     @test_approx_eq_eps fracf rate tol
