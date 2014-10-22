@@ -1,4 +1,4 @@
-using StatsBase: sample
+using SexSims
 
 function simulation()
     srand(1234)
