@@ -74,12 +74,3 @@ function migrate!(t, g::Gene, st::GeneStateRecorder)
     prepare!(t, g.mig, MIGRATION, st)
     Gene(g.id, st.next)
 end
-
-function growifnecessary!(st::GeneStateRecorder)
-    if st.next == st.cursize
-        st.incr *= 2
-        st.cursize += st.incr
-        sizehint(st.data, st.cursize)
-    end
-    nothing
-end
