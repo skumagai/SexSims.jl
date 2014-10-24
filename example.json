@@ -1,0 +1,62 @@
+{
+    "population size": {
+        "female": [100, 200],
+        "male": [150, 150]
+    },
+    "mutation probability": 0.01,
+    "learning": [
+        {
+            "from": "female",
+            "to": "female",
+            "rate": 0.01
+        },
+        {
+            "from": "female",
+            "to": "male",
+            "rate": 0.02
+        },
+        {
+            "from": "male",
+            "to": "female",
+            "rate": 0.1
+        },
+        {
+            "from": "male",
+            "to": "male",
+            "rate": 0.2
+        }
+    ],
+    "migration": {
+        "female": {
+            "fraction": [0.2, 0.3],
+            "cost": [0.2, 0.1]
+        },
+        "male": {
+            "fraction": [0.4, 0.2],
+            "cost": [0.02, 0.01]
+        }
+    },
+    "trait": [
+        {
+            "deme": 1,
+            "value": 1,
+            "sex": "female"
+        },
+        {
+            "deme": 1,
+            "value": 2,
+            "sex": "female"
+        },
+        {
+            "deme": 2,
+            "value": 1,
+            "sex": "male"
+        },
+        {
+            "deme": 2,
+            "value": 2,
+            "sex": "male"
+        }
+    ]
+}
+
