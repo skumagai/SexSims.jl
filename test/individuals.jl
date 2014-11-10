@@ -62,23 +62,3 @@ for rate = rates
         end
     end
 end
-
-for i = 1:2, j = 1:2, rate = rates
-    if i == j
-        @test SexSims.fitness(i, j, rate, 1 - rate) == rate
-    else
-        @test SexSims.fitness(i, j, rate, 1 - rate) == 1 - rate
-    end
-end
-
-w1 = WeightVec([0.5, 0.5, 1.0, 1.0])
-w2 = WeightVec([1.0, 1.0, 1.5, 1.5])
-for rate = rates
-    data = [SexSims.pickparent(w1, w2, rate) for _ = 1:n]
-    frac = countnz(data .<= 4) / n
-    @test_approx_eq_eps frac rate tol
-    frac = countnz(data .<= 2) / n
-    @test_approx_eq_eps frac rate / 3 tol
-    frac = countnz(data .>= 7) / n
-    @test_approx_eq_eps frac 3 * (1 - rate) / 5 tol
-end
