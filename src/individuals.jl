@@ -48,8 +48,6 @@ function learn(deme, f, m, fr::Float64, mr::Float64)
     end
 end
 
-fitness(deme, trait, r1, r2) = convert(Float64, deme == trait ? r1 : r2)
-
 function migrate!(t, p::Female, rec::GeneStateRecorder)
     a = (migrate!(t, p.auto[1], rec), migrate!(t, p.auto[2], rec))
     x = (migrate!(t, p.x[1], rec), migrate!(t, p.x[2], rec))
@@ -62,8 +60,4 @@ function migrate!(t, p::Male, rec::GeneStateRecorder)
     x = migrate!(t, p.x, rec)
     y = migrate!(t, p.y, rec)
     Male(a, x, y)
-end
-
-function pickparent(w1::WeightVec, w2::WeightVec, r::Float64)
-    convert(Int, rand() < r ? sample(w1) : sample(w2) + length(w1))
 end
