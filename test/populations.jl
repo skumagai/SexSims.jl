@@ -7,7 +7,7 @@ pop = Population([5, 5], [5, 5])
 @test isa(pop[Female], SexSims.Organisms{Female})
 @test isa(pop[Male], SexSims.Organisms{Male})
 for s = [Female, Male]
-    @test pop[s].size == (5, 5)
+    @test pop[s].size == [5, 5]
     @test length(pop[s].trait) == 10
     @test length(pop[s].data) == 10
     for i = 1:10

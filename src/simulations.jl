@@ -1,7 +1,5 @@
-using StatsBase: sample!
 using SexSims
 using JSON
-using StatsBase: sample
 using Distributions: Binomial
 
 function learningrate(ps, from, to)
@@ -18,24 +16,21 @@ function simulation()
     srand(1)
     tmax = 10
     # Population sizes of adults participating in reproduction.  These numbers are per-deme.
-    nf = convert(Array{Int,1}, params["population size"]["female"])
-    nm = convert(Array{Int,1}, params["population size"]["male"])
+    nf = convert(Vector{Int}, params["population size"]["female"])
+    nm = convert(Vector{Int}, params["population size"]["male"])
     # Proportion of reproducing migrants out of all reproducing adults.
     # This is sex- and deme-specific.
-    fb = convert(Array{Float64,1}, params["migration"]["female"]["fraction"])
-    mb = convert(Array{Float64,1}, params["migration"]["male"]["fraction"])
+    fb = convert(Vector{Float64}, params["migration"]["female"]["fraction"])
+    mb = convert(Vector{Float64}, params["migration"]["male"]["fraction"])
     # cost of migration.  This is sex- and deme-specific
-    ft = convert(Array{Float64,1}, params["migration"]["female"]["cost"])
-    mt = convert(Array{Float64,1}, params["migration"]["male"]["cost"])
+    ft = convert(Vector{Float64}, params["migration"]["female"]["cost"])
+    mt = convert(Vector{Float64}, params["migration"]["male"]["cost"])
     # Numbers of migrants participating in reproduction.  This quantity takes cost into account.
     # This is deme-specific and sex-specific in parents.
-    fv = Int[round(val) for val in nf .* fb .* ft ./ (fb .* ft + 1 - fb)]
-    mv = Int[round(val) for val in nm .* mb .* mt ./ (mb .* mt + 1 - mb)]
-    # number of offspring before migration
-    nfo = nf - reverse(fv) + fv
-    nmo = nm - reverse(mv) + mv
+    fv = convert(Vector{Float64}, nf .* fb .* ft ./ (fb .* ft + 1 - fb))
+    mv = convert(Vector{Float64}, nm .* mb .* mt ./ (mb .* mt + 1 - mb))
     # Probability of mutation per locus per generation.  This is common across loci.
-    mut = params["mutation probability"]
+    mut = convert(Flaot64, params["mutation probability"])
     # Fitness of individuals carrying non-local trait (relative to local individuals)
     # This is deme specific (in deme 1, in deme 2)
     ffit = trait2fitness(params["trait"]["female"])

@@ -1,7 +1,7 @@
 using StatsBase: sample!
 
 immutable Organisms{T<:Organism}
-    size::(Int, Int)
+    size::Vector{Int}
     trait::Vector{DemeIndex}
     data::Vector{T}
 end
@@ -11,7 +11,7 @@ immutable Population
     m::Organisms{Male}
 end
 
-function Population(nf::(Int, Int), nm::(Int, Int))
+function Population(nf::Vector{Int}, nm::Vector{Int})
     ft = vcat([fill(convert(DemeIndex, i), j) for (i, j) = enumerate(nf)]...)
     mt = vcat([fill(convert(DemeIndex, i), j) for (i, j) = enumerate(nm)]...)
 
