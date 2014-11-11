@@ -1,5 +1,7 @@
 using SexSims
 using JSON
+using StatsBase: sample
+using Distributions: Binomial
 
 function simulation()
     params = JSON.parsefile(ARGS[1])
@@ -36,27 +38,69 @@ function simulation()
     children = Population(nf, nm)
     rec = GeneStateRecorder(4 * (sum(nf) + sum(nm)))
 
-    # Index of parents
-    fpids = ParentIds(nf)
-    mpids = ParentIds(nm)
-
+    nfo = Array(Int, 2)
+    nmo = Array(Int, 2)
+    mfo = Array(Int, 2)
+    mmo = Array(Int, 2)
     for t = 1:tmax
         parents, children = children, parents
-        fitness!(parents[Female], ffit...)
-        fitness!(parents[Male], mfit...)
+        # decide number of local and migrating offspring.
+        for i = 1:2
+            mfo[i] = rand(Binomial(nf[i], fv[i]))
+            mmo[i] = rand(Binomial(nm[i], mv[i]))
+        end
+        for i = 1:2
+            nfo[i] = nf[i] - mfo[i] + mfo[3 - i]
+            nmo[i] = nm[i] - mmo[i] + mmo[3 - i]
+        end
+
         # mating
-        # Select aprents of female offspring
-        pickparents!(nf, fpids, parents, fv, mv)
-        # Select parents of male offspring
-        pickparents!(nm, mpids, parents, fv, mv)
-        # Generating offspring
-        reproduce!(t, children, parents, (fpids, mpids), mut, rec)
-        # learning
-        learn!(children[Female], parents, fpids, f2fl, m2fl)
-        learn!(children[Male], parents, mpids, f2ml, m2ml)
+        fc = 1
+        mc = 1
+        for deme = 1:2
+            for i = 1:nfo[deme]
+                while true
+                    mom = rand(1:nf[deme])
+                    pop = rand(1:mn[deme])
+                    trait = learn(deme, mom, pop, f2fl, m2fl)
+                    if sel[deme, trait] < rand()
+                        children[Female][fc] = Female(mom, pop, trait)
+                        break
+                    end
+                end
+                fc += 1
+            end
+            for i = 1:nmo[deme]
+                while true
+                    mom = rand(1:nf[deme])
+                    pop = rand(1:nm[deme])
+                    trait = learn(deme, mom, pop, f2ml, m2ml)
+                    if sel[deme, trait] < rand()
+                        children[Male][mc] = Male(mom, pop, trait)
+                        break
+                    end
+                end
+                mc += 1
+            end
+        end
+        migrate!(t, femeles, nfo, mfo, rec)
+        migrate!(t, males, nmo, mmo, rec)
     end
     rec, children
 end
+
+function migrate!(t, orgs, n, migs, rec)
+    tar, src = getmigrants(no, migs)
+    b = n[1]
+    for i = 1:length(tar)
+        if tar[i] <= b < src[i] || src[i] <= b < tar[i]
+            orgs[src[i]] = migrate!(t, orgs[src[i]], rec)
+        end
+    end
+    orgs[tar] = orgs[src]
+end
+
+
 
 function summarize(rec, pop)
 end
