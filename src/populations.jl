@@ -1,7 +1,7 @@
 using StatsBase: WeightVec
 
 immutable Organisms{T<:Organism}
-    size::(Int, Int)
+    size::Vector{Int}
     fit::Vector{Float64}
     trait::Vector{DemeIndex}
     data::Vector{T}
@@ -12,7 +12,7 @@ immutable Population
     m::Organisms{Male}
 end
 
-function Population(nf::(Int, Int), nm::(Int, Int))
+function Population(nf::Vector{Int}, nm::Vector{Int})
     ffit = Array(Float64, sum(nf))
     mfit = Array(Float64, sum(nm))
 
@@ -31,7 +31,7 @@ Base.getindex(p::Population, ::Type{Male}) = p.m
 immutable ParentIds
     data::Matrix{Int}
 end
-ParentIds(n::(Int, Int)) = ParentIds(Array(Int, sum(n), 2))
+ParentIds(n::Vector{Int}) = ParentIds(Array(Int, sum(n), length(n)))
 ParentIds(n::Int) = ParentIds(Array(Int, n, 2))
 
 Base.getindex(p::ParentIds, i) = Base.getindex(p.data,  i, 1:2)
@@ -40,8 +40,8 @@ Base.setindex!(p::ParentIds, i, j, k) = Base.setindex!(p.data, i, j, k)
 
 function learn!{T<:Organism}(c::Organisms{T}, par::Population,
     pids::ParentIds,
-    fr::(Float64, Float64),
-    mr::(Float64, Float64))
+    fr::Vector{Float64},
+    mr::Vector{Float64})
     for i = 1:length(c.data)
         deme = i <= c.size[1] ? 1 : 2
         fid, mid = pids[i]
@@ -88,7 +88,7 @@ function reproduce!(t, c::Population, p::Population,
 end
 
 # The rate parameter (r) is given as the proportion of parents selected from the first deme.
-function pickparents!(col, ids::ParentIds, w1::WeightVec, w2::WeightVec, r::(Float64, Float64))
+function pickparents!(col, ids::ParentIds, w1::WeightVec, w2::WeightVec, r::Vector{Float64})
     offset = 0
     for (deme, w) = enumerate((w1, w2))
         for i = (1:length(w)) + offset
@@ -99,11 +99,11 @@ function pickparents!(col, ids::ParentIds, w1::WeightVec, w2::WeightVec, r::(Flo
     nothing
 end
 
-function pickparents!(size::(Int, Int), ids::ParentIds, pop::Population, fb::(Float64, Float64), mb::(Float64, Float64))
+function pickparents!(size::Vector{Int}, ids::ParentIds, pop::Population, fb::Vector{Float64}, mb::Vector{Float64})
     fwv = (WeightVec(pop[Female].fit[1:size[1]]), WeightVec(pop[Female].fit[size[1]+1:end]))
-    pickparents!(1, ids, fwv..., (fb[1], 1 - fb[2]))
+    pickparents!(1, ids, fwv..., [fb[1], 1 - fb[2]])
 
     mwv = (WeightVec(pop[Male].fit[1:size[1]]), WeightVec(pop[Male].fit[size[1]+1:end]))
-    pickparents!(2, ids, mwv..., (mb[1], 1 - mb[2]))
+    pickparents!(2, ids, mwv..., [mb[1], 1 - mb[2]])
     nothing
 end

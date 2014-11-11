@@ -8,22 +8,22 @@
         {
             "from": "female",
             "to": "female",
-            "rate": 0.01
+            "rate": [0.01, 0.02]
         },
         {
             "from": "female",
             "to": "male",
-            "rate": 0.02
+            "rate": [0.02, 0.03]
         },
         {
             "from": "male",
             "to": "female",
-            "rate": 0.1
+            "rate": [0.1, 0.2]
         },
         {
             "from": "male",
             "to": "male",
-            "rate": 0.2
+            "rate": [0.2, 0.3]
         }
     ],
     "migration": {
@@ -36,27 +36,14 @@
             "cost": [0.02, 0.01]
         }
     },
-    "trait": [
-        {
-            "deme": 1,
-            "value": 1,
-            "sex": "female"
-        },
-        {
-            "deme": 1,
-            "value": 2,
-            "sex": "female"
-        },
-        {
-            "deme": 2,
-            "value": 1,
-            "sex": "male"
-        },
-        {
-            "deme": 2,
-            "value": 2,
-            "sex": "male"
-        }
-    ]
+    "trait": {
+        "female": [
+            [1.0, 0.5],
+            [0.6, 1.0]
+        ],
+        "male": [
+            [1.0, 0.7],
+            [0.8, 1.0]
+        ]
+    }
 }
-

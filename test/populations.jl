@@ -3,11 +3,11 @@ rates = 0.0:0.2:1.0
 n = 10^4
 tol = 5e-2
 
-pop = Population((5, 5), (5, 5))
+pop = Population([5, 5], [5, 5])
 @test isa(pop[Female], SexSims.Organisms{Female})
 @test isa(pop[Male], SexSims.Organisms{Male})
 for s = [Female, Male]
-    @test pop[s].size == (5, 5)
+    @test pop[s].size == [5, 5]
     @test length(pop[s].fit) == 10
     @test length(pop[s].trait) == 10
     @test length(pop[s].data) == 10
@@ -19,11 +19,11 @@ end
 
 pids = SexSims.ParentIds(10)
 @test size(pids.data) == (10, 2)
-pids = SexSims.ParentIds((5, 5))
+pids = SexSims.ParentIds([5, 5])
 @test size(pids.data) == (10, 2)
 
-par = Population((2, 2), (2, 2))
-c = Population((2, 2), (2, 2))
+par = Population([2, 2], [2, 2])
+c = Population([2, 2], [2, 2])
 pids = SexSims.ParentIds(4)
 frac1, frac2 = 1.0, 1.0
 data1 = SexSims.DemeIndex[0 for i = 1:2n]
@@ -31,7 +31,7 @@ data2 = SexSims.DemeIndex[0 for i = 1:2n]
 for rate = rates
     pids.data[:,:] = [1 1; 1 1; 1 1; 1 1]
     for i = 1:n
-        SexSims.learn!(c[Female], par, pids, (rate, 1 - rate), (1 - rate, rate))
+        SexSims.learn!(c[Female], par, pids, [rate, 1 - rate], [1 - rate, rate])
         data1[2(i-1)+1:2i] = c[Female].trait[1:2]
         data2[2(i-1)+1:2i] = c[Female].trait[3:4]
     end
@@ -41,7 +41,7 @@ for rate = rates
     @test_approx_eq_eps frac2  1 - rate * (1 - rate) tol
 end
 
-p = Population((5, 5), (5, 5))
+p = Population([5, 5], [5, 5])
 p[Female].trait[:] = [1, 1, 1, 2, 2, 1, 1, 2, 2, 2]
 for rate = rates
     fitness!(p[Female], rate, 1 - rate)
@@ -49,8 +49,8 @@ for rate = rates
 end
 
 pids = SexSims.ParentIds(10)
-par = Population((5, 5), (5, 5))
-c = Population((5, 5), (5, 5))
+par = Population([5, 5], [5, 5])
+c = Population([5, 5], [5, 5])
 rec = GeneStateRecorder(1000)
 par[Female].fit[:] = [1, 1, 1, 0.5, 0.5, 1.5, 1.5, 1, 1, 1]
 par[Male].fit[:] = [1.5, 1.5, 1.5, 1, 1, 1, 1, 0.5, 0.5, 0.5]
@@ -59,7 +59,7 @@ dataf = [0 for _ = 1:10n]
 datam = [0 for _ = 1:10n]
 for rate = rates
     for i = 1:n
-        SexSims.pickparents!((5, 5), pids, par, (rate, 1 - rate), (1 - rate, rate))
+        SexSims.pickparents!([5, 5], pids, par, [rate, 1 - rate], [1 - rate, rate])
         SexSims.reproduce!(1, c.f, par, pids, rate, rec)
         dataf[10(i-1)+1:10i] = pids.data[:,1]
         datam[10(i-1)+1:10i] = pids.data[:,2]
