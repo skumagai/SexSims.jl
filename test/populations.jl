@@ -30,6 +30,12 @@ for i = 0:20, j = 0:i, _ = 1:1000
     @test length(unique(elems)) == 40
     @test countnz((elems .> i)[1:20]) == d
     @test countnz((elems .<= i)[21:end]) == j
+    rec = GeneStateRecorder(100)
+    didx = vcat(fill(convert(SexSims.DemeIndex, 1), i), fill(convert(SexSims.DemeIndex, 2), 40 - i))
+    orgs = SexSims.Organisms{Female}(nelem, didx, [Female() for _ = 1:sum(nelem)])
+    migrate!(1, orgs, nelem, [j, d], rec)
+    @test countnz([SexSims.mig(o.auto[1]) != 0x0 for o in sub(orgs.data, 1:20)]) == d
+    @test countnz([SexSims.mig(o.auto[1]) != 0x0 for o in sub(orgs.data, 21:40)]) == j
 
     nelem = [40 - i, i]
     sels = SexSims.selectmigrants(nelem, [d, j])
@@ -42,4 +48,10 @@ for i = 0:20, j = 0:i, _ = 1:1000
     @test length(unique(elems)) == 40
     @test countnz((elems .> 40 - i)[1:20]) == j
     @test countnz((elems .<= 40 - i)[21:end]) == d
+    rec = GeneStateRecorder(100)
+    didx = vcat(fill(convert(SexSims.DemeIndex, 1), 40 - i), fill(convert(SexSims.DemeIndex, 2), i))
+    orgs = SexSims.Organisms{Female}(nelem, didx, [Female() for _ = 1:sum(nelem)])
+    migrate!(1, orgs, nelem, [d, j], rec)
+    @test countnz([SexSims.mig(o.auto[1]) != 0x0 for o in sub(orgs.data, 1:20)]) == j
+    @test countnz([SexSims.mig(o.auto[1]) != 0x0 for o in sub(orgs.data, 21:40)]) == d
 end

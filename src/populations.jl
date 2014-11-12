@@ -26,13 +26,14 @@ Base.getindex(p::Population, ::Type{Male}) = p.m
 
 function migrate!(t, orgs, n, migs, rec)
     tar, src = listmovers(n, migs)
-    b = n[1]
+    bb = n[1]
+    ba = n[1] - migs[1] + migs[2]
     for i = 1:length(tar)
-        if tar[i] <= b < src[i] || src[i] <= b < tar[i]
-            orgs[src[i]] = migrate!(t, orgs[src[i]], rec)
+        if (tar[i] <= ba && src[i] > bb) || (tar[i] > ba && src[i] <= bb)
+            orgs.data[src[i]] = migrate!(t, orgs.data[src[i]], rec)
         end
     end
-    orgs[tar] = orgs[src]
+    orgs.data[tar] = orgs.data[src]
 end
 
 function selectmigrants!(sels, nelem, s)
