@@ -34,6 +34,8 @@ function migrate!(t, orgs, n, migs, rec)
         end
     end
     orgs.data[tar] = orgs.data[src]
+    orgs.size[1] = ba
+    orgs.size[2] = sum(n)
 end
 
 function selectmigrants!(sels, nelem, s)
