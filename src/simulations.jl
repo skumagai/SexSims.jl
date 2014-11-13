@@ -2,14 +2,46 @@ using SexSims
 using JSON
 using Distributions: Binomial
 
+
+# functions to parse input parameters from JSON and convert to appropriate format
 function learningrate(ps, from, to)
     for elem in ps
-        elem["from"] == from && elem["to"] == to && return convert(Array{Float64,1}, elem["rate"])
+        elem["from"] == from && elem["to"] == to && return convert(Vector{Float64}, elem["rate"])
     end
     Float64[0., 0.]
 end
 
-trait2fitness(ps) = Float64[ps[1][2], ps[2][1]]
+trait2fitness(ps) = [convert(Vector{Float64}, ps[1]) convert(Vector{Float64}, ps[2])]'
+
+# core function for reproduction
+function getchild(t, orgs, sex, deme, nf, nm, frate, mrate, sel, mut, rec)
+    while true
+        mom = rand(1:nf)
+        pop = rand(1:nm)
+        trait = SexSims.learn(deme, mom, pop, frate, mrate)
+        if sel[deme, trait] < rand()
+            return sex(t, orgs[Female].data[mom], orgs[Male].data[pop], mut, rec), trait
+        end
+    end
+end
+
+function setindividual!(orgs, idx, org, trait)
+    orgs.data[idx] = org
+    orgs.trait[idx] = trait
+    nothing
+end
+
+function nmigrants!(mig, n, v)
+    for i = 1:2
+        mig[i] = rand(Binomial(n[i], v[i]))
+    end
+end
+
+function nbefore!(nb, n, m)
+    for i = 1:2
+        nb[i] = n[i] + m[i] - m[3 - i]
+    end
+end
 
 function simulation()
     params = JSON.parsefile(ARGS[1])
@@ -27,10 +59,10 @@ function simulation()
     mt = convert(Vector{Float64}, params["migration"]["male"]["cost"])
     # Numbers of migrants participating in reproduction.  This quantity takes cost into account.
     # This is deme-specific and sex-specific in parents.
-    fv = convert(Vector{Float64}, nf .* fb .* ft ./ (fb .* ft + 1 - fb))
-    mv = convert(Vector{Float64}, nm .* mb .* mt ./ (mb .* mt + 1 - mb))
+    fv = convert(Vector{Float64}, fb .* ft ./ (fb .* ft + 1 - fb))
+    mv = convert(Vector{Float64}, mb .* mt ./ (mb .* mt + 1 - mb))
     # Probability of mutation per locus per generation.  This is common across loci.
-    mut = convert(Flaot64, params["mutation probability"])
+    mut = convert(Float64, params["mutation probability"])
     # Fitness of individuals carrying non-local trait (relative to local individuals)
     # This is deme specific (in deme 1, in deme 2)
     ffit = trait2fitness(params["trait"]["female"])
@@ -42,80 +74,81 @@ function simulation()
     f2ml = learningrate(params["learning"], "female", "male")
     m2ml = learningrate(params["learning"], "male", "male")
 
-    parents = Population(nfo, nmo)
-    children = Population(nfo, nmo)
-    rec = GeneStateRecorder(4 * (sum(nfo) + sum(nmo)))
-
+    # number of migrants
+    fmig = Array(Int, 2)
+    mmig = Array(Int, 2)
+    # deme-specific number of offspring
     nfo = Array(Int, 2)
     nmo = Array(Int, 2)
-    mfo = Array(Int, 2)
-    mmo = Array(Int, 2)
+
+    nmigrants!(fmig, nf, fv)
+    nmigrants!(mmig, nm, mv)
+    nbefore!(nfo, nf, fmig)
+    nbefore!(nmo, nm, mmig)
+
+    parents = Population(nfo, nmo)
+    children = Population(nfo, nmo)
+    rec = GeneStateRecorder(10 * (sum(nfo) + sum(nmo)))
+
     for t = 1:tmax
         parents, children = children, parents
-        # decide number of local and migrating offspring.
-        for i = 1:2
-            mfo[i] = rand(Binomial(nf[i], fv[i]))
-            mmo[i] = rand(Binomial(nm[i], mv[i]))
-        end
-        for i = 1:2
-            nfo[i] = nf[i] - mfo[i] + mfo[3 - i]
-            nmo[i] = nm[i] - mmo[i] + mmo[3 - i]
-        end
 
         # mating
-        fc = 1
-        mc = 1
+        fcidx = 1
+        mcidx = 1
         for deme = 1:2
             for i = 1:nfo[deme]
-                while true
-                    mom = rand(1:nf[deme])
-                    pop = rand(1:mn[deme])
-                    trait = learn(deme, mom, pop, f2fl, m2fl)
-                    if sel[deme, trait] < rand()
-                        children[Female][fc] = Female(mom, pop, trait)
-                        break
-                    end
-                end
-                fc += 1
+                setindividual!(children[Female], fcidx, getchild(t, parents, Female, deme, nf[deme], nm[deme], f2fl[deme], m2fl[deme], ffit, mut, rec)...)
+                fcidx += 1
             end
             for i = 1:nmo[deme]
-                while true
-                    mom = rand(1:nf[deme])
-                    pop = rand(1:nm[deme])
-                    trait = learn(deme, mom, pop, f2ml, m2ml)
-                    if sel[deme, trait] < rand()
-                        children[Male][mc] = Male(mom, pop, trait)
-                        break
-                    end
-                end
-                mc += 1
+                setindividual!(children[Male], mcidx, getchild(t, parents, Male, deme, nf[deme], nm[deme], f2ml[deme], m2ml[deme], mfit, mut, rec)...)
+                mcidx += 1
             end
         end
-        migrate!(t, femeles, nfo, mfo, rec)
-        migrate!(t, males, nmo, mmo, rec)
+        migrate!(t, children[Female], nfo, fmig, rec)
+        migrate!(t, children[Male], nmo, mmig, rec)
+        # decide number of local and migrating individuals in next-generation.
+        nmigrants!(fmig, nf, fv)
+        nmigrants!(mmig, nm, mv)
+        nbefore!(nfo, nf, fmig)
+        nbefore!(nmo, nm, mmig)
     end
     rec, children
 end
 
-function migrate!(t, orgs, n, migs, rec)
-    tar, src = getmigrants(no, migs)
-    b = n[1]
-    for i = 1:length(tar)
-        if tar[i] <= b < src[i] || src[i] <= b < tar[i]
-            orgs[src[i]] = migrate!(t, orgs[src[i]], rec)
-        end
-    end
-    orgs[tar] = orgs[src]
-end
-
-
-
 function summarize(rec, pop)
+    println("deme\tsex\torganism\tchromosome\tallele.index\tmigration.index")
+    orgs = pop[Female]
+    b = orgs.size[1]
+    idx = 1
+    for i = 1:length(orgs.data)
+        deme = i <= b ? 1 : 2
+        for j = 1:2
+            println("$deme\tfemale\t$idx\tautosome\t$(SexSims.id(orgs.data[i].auto[j]))\t$(SexSims.mig(orgs.data[i].auto[j]))")
+        end
+        for j = 1:2
+            println("$deme\tfemale\t$idx\tx\t$(SexSims.id(orgs.data[i].x[j]))\t$(SexSims.mig(orgs.data[i].x[j]))")
+        end
+        println("$deme\tfemale\t$idx\tmito\t$(SexSims.id(orgs.data[i].mito))\t$(SexSims.mig(orgs.data[i].mito))")
+        idx += 1
+    end
+    orgs = pop[Male]
+    b = orgs.size[1]
+    for i = 1:length(orgs.data)
+        deme = i <= b ? 1 : 2
+        for j = 1:2
+            println("$deme\tmale\t$idx\tautosome\t$(SexSims.id(orgs.data[i].auto[j]))\t$(SexSims.mig(orgs.data[i].auto[j]))")
+        end
+        println("$deme\tmale\t$idx\tx\t$(SexSims.id(orgs.data[i].x))\t$(SexSims.mig(orgs.data[i].x))")
+        println("$deme\tmale\t$idx\ty\t$(SexSims.id(orgs.data[i].y))\t$(SexSims.mig(orgs.data[i].y))")
+        idx += 1
+    end
 end
 
 function main()
     length(ARGS) != 1 && error("Usage: julia simulation.jl inputfile")
-    simulation()
+    summarize(simulation()...)
 end
 
 main()
