@@ -1,4 +1,4 @@
-export Gene, Change, GeneStateRecorder, id, mig, from, to, gen, migrate!, mutate!
+export Gene, Change, GeneStateRecorder, id, mig, from, gen, migrate!, mutate!
 
 const MUTATION = 0x0
 const MIGRATION = 0x1
@@ -13,11 +13,9 @@ mig(g::Gene) = g.mig
 immutable Change
     gen::Generation
     from::StateIndex
-    to::StateIndex
     kind::EventType
 end
 from(c::Change) = c.from
-to(c::Change) = c.to
 gen(c::Change) = c.gen
 function kind(c::Change)
     if c.kind == MUTATION
@@ -62,7 +60,7 @@ function prepare!(t, v, typ, st)
     if i > length(st.data)
         push!(st.data, Array(Change, st.chunk))
     end
-    st.data[i][j] = Change(t, v, st.next, typ)
+    st.data[i][j] = Change(t, v, typ)
 end
 
 function mutate!(t, g::Gene, st::GeneStateRecorder)

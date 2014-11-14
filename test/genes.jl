@@ -17,7 +17,6 @@ end
 for (i, c) = enumerate(rec)
     @test c.gen == 1
     @test c.from == 0
-    @test c.to == i
     @test c.kind == SexSims.MUTATION
 end
 
@@ -43,6 +42,5 @@ migrate!(1, Gene(0, 0), rec)
 for (i, c) = enumerate(rec)
     @test c.gen == 1
     @test c.from == 0
-    @test c.to == i
     @test c.kind == SexSims.MIGRATION
 end
