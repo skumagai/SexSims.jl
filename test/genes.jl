@@ -44,3 +44,19 @@ for (i, c) = enumerate(rec)
     @test c.from == 0
     @test c.kind == SexSims.MIGRATION
 end
+
+rec = GeneStateRecorder(2)
+gene = Gene(0, 0)
+gene = mutate!(1, gene, rec)
+gene = mutate!(2, gene, rec)
+gene = mutate!(3, gene, rec)
+gene = mutate!(4, gene, rec)
+gene = migrate!(5, gene, rec)
+gene = migrate!(6, gene, rec)
+gene = mutate!(7, gene, rec)
+gene = migrate!(8, gene, rec)
+gene = migrate!(9, gene, rec)
+@test SexSims.countalong(rec, gene, SexSims.MIGRATION) == 4
+@test SexSims.countalong(rec, gene, SexSims.MUTATION) == 5
+@test sort(SexSims.eventintervals(rec, gene, SexSims.MUTATION)) == [1, 1, 1, 3]
+@test sort(SexSims.eventintervals(rec, gene, SexSims.MIGRATION)) == [1, 1, 2]

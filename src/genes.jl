@@ -72,3 +72,37 @@ function migrate!(t, g::Gene, st::GeneStateRecorder)
     prepare!(t, g.mig, MIGRATION, st)
     Gene(g.id, st.next)
 end
+
+function _getid(gene, event)
+    if event == MIGRATION
+        mig(gene)
+    elseif event == MUTATION
+        id(gene)
+    else
+        error("Undefined event type")
+    end
+end
+
+function countalong(st, gene, event)
+    idx = _getid(gene, event)
+    n = 0
+    while idx != 0x0
+        idx = st[idx].from
+        n += 1
+    end
+    n
+end
+
+function eventintervals(st, gene, event)
+    idx = _getid(gene, event)
+    n = countalong(st, gene, event)
+    data = Array(Int, n - 1)
+    next = st[idx].from
+    i = 1
+    while next != 0x0
+        data[i] = gen(st[idx]) - gen(st[next])
+        i += 1
+        next, idx = st[next].from, next
+    end
+    data
+end
