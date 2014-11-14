@@ -42,7 +42,7 @@ end
 function Base.getindex(st::GeneStateRecorder, i)
     j, k = divrem(i - 1, st.chunk)
     j, k = j + 1, k + 1
-    st.data[j, k]
+    st.data[j][k]
 end
 
 Base.start(st::GeneStateRecorder) = 1
