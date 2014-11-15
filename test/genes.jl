@@ -60,3 +60,21 @@ gene = migrate!(9, gene, rec)
 @test SexSims.countalong(rec, gene, SexSims.MUTATION) == 5
 @test sort(SexSims.eventintervals(rec, gene, SexSims.MUTATION)) == [1, 1, 1, 3]
 @test sort(SexSims.eventintervals(rec, gene, SexSims.MIGRATION)) == [1, 1, 2]
+
+rec = GeneStateRecorder(2)
+gene = Gene(0, 0)
+gene1 = mutate!(1, gene, rec)
+gene2 = mutate!(1, gene, rec)
+gene1 = mutate!(2, gene1, rec)
+gene1 = mutate!(3, gene1, rec)
+gene2 = mutate!(2, gene2, rec)
+@test SexSims.listevents(rec, gene1, SexSims.MUTATION) == [4, 3, 1]
+@test SexSims.listevents(rec, gene2, SexSims.MUTATION) == [5, 2]
+@test isnull(SexSims.distance(rec, gene1, gene2, SexSims.MUTATION)) == true
+gene1 = mutate!(1, gene, rec)
+gene2 = mutate!(2, gene1, rec)
+gene1 = mutate!(2, gene1, rec)
+gene1 = mutate!(3, gene1, rec)
+gene2 = mutate!(3, gene2, rec)
+@test isnull(SexSims.distance(rec, gene1, gene2, SexSims.MUTATION)) == false
+@test get(SexSims.distance(rec, gene1, gene2, SexSims.MUTATION)) == 5

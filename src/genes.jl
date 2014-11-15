@@ -106,3 +106,28 @@ function eventintervals(st, gene, event)
     end
     data
 end
+
+function listevents(st, gene, event)
+    idx = _getid(gene, event)
+    n = countalong(st, gene, event)
+    data = Array(Int, n)
+    i = 1
+    while idx != 0x0
+        data[i] = idx
+        idx = st[idx].from
+        i += 1
+    end
+    data
+end
+
+function distance(st, gene1, gene2, event)
+    data1 = listevents(st, gene1, event)
+    data2 = listevents(st, gene2, event)
+    isc = intersect(data1, data2)
+    if isempty(isc)
+        Nullable{Int}()
+    else
+        i = isc[1]
+        Nullable(findfirst(data1, i) + findfirst(data2, i) - 1)
+    end
+end
