@@ -2,6 +2,7 @@ using SexSims
 using JSON
 using Distributions: Binomial
 using DataFrames: DataFrame, writetable
+using DataArrays: DataArray, NA
 
 # functions to parse input parameters from JSON and convert to appropriate format
 function learningrate(ps, from, to)
@@ -119,104 +120,129 @@ end
 
 function summarize(config, rec, pop)
     i = 1
-    while isfile("$config-$i")
+    while isdir("$config-$i")
         i += 1
     end
     outfile = "$config-$i"
     mkdir(outfile)
-    getmigrations(joinpath(outfile, "migrations.tsv"))
-    getdistance(joinpath(outfile, "dist.tsv"))
+    getmigrations(joinpath(outfile, "migrations.tsv"), rec, pop)
+    getdistance(joinpath(outfile, "dist.tsv"), rec, pop)
+end
+
+function listuniquegenes(genes)
+    dict = Dict{SexSims.StateIndex, SexSims.Gene}()
+    for gene in genes
+        if !haskey(dict, SexSims.id(gene))
+            dict[SexSims.id(gene)] = gene
+        end
+    end
+    [elem for elem in values(dict)]
+end
+
+function recorddistance!(idx, rec, chrstr, chr, gene1, gene2, dist, alleles)
+    for i = 1:length(alleles)
+        for j = (i+1):length(alleles)
+            chr[idx] = chrstr
+            gene1[idx] = convert(Int, SexSims.id(alleles[i]))
+            gene2[idx] = convert(Int, SexSims.id(alleles[j]))
+            d = SexSims.distance(rec, alleles[i], alleles[j], SexSims.MUTATION)
+            dist[idx] = isnull(d) ? NA : get(d)
+            idx += 1
+        end
+    end
+    idx
 end
 
 function getdistance(path, rec, pop)
-    a = unique(vcat(unique([SexSims.id(gene) for ind in pop[SexSims.Female] for gene in ind.auto]),
-                    unique([SexSims.id(gene) for ind in pop[SexSims.Male] for gene in ind.auto])))
-    x = unique(vcat(unique([SexSims.id(gene) for ind in pop[SexSims.Female] for gene in ind.x]),
-                    unique([SexSims.id(ind.x) for ind in pop[SexSims.Male]])))
-    y = unique([SexSims.id(ind.y) for ind in pop[SexSims.Male]])
-    mito = unique([SexSims.id(ind.mito) for ind.pop[SexSims.Female]])
-    sort!(a)
-    sort!(x)
-    sort!(y)
-    sort!(mito)
-    nelem = length(a) * (length(a) - 1) + length(x) * (length(x) - 1) + length(y) * (length(y) - 1) + length(mito) * (length(mito) - 1)
+    agene = vcat([[gene for gene in ind.auto] for ind in pop[SexSims.Female].data]...,
+                 [[gene for gene in ind.auto] for ind in pop[SexSims.Male].data]...)
+    xgene = vcat([[gene for gene in ind.auto] for ind in pop[SexSims.Female].data]...,
+                 [ind.x for ind in pop[SexSims.Male].data])
+    ygene = [ind.y for ind in pop[SexSims.Male].data]
+    mitogene = [ind.mito for ind in pop[SexSims.Female].data]
+    a = listuniquegenes(agene)
+    x = listuniquegenes(xgene)
+    y = listuniquegenes(ygene)
+    mito = listuniquegenes(mitogene)
+    nelem = binomial(length(a), 2) + binomial(length(x), 2) + binomial(length(y), 2) + binomial(length(mito), 2)
     chr = Array(ASCIIString, nelem)
     gene1 = Array(Int, nelem)
     gene2 = Array(Int, nelem)
     dist = DataArray(Int, nelem)
     idx = 1
-    for i = 1:length(a)
-        for j = (i+1):length(a)
-            chr[idx] = "autosome"
-            gene1[idx] = SexSims.id(a[i])
-            gene2[idx] = SexSims.id(a[j])
-            d = SexSims.distance(rec, mito[i], mito[j], "mutation")
-            dist[idx] = isnull(d) ? NA : get(d)
-            idx += 1
-        end
-    end
-    for i = 1:length(x)
-        for j = (i+1):length(x)
-            chr[idx] = "autosome"
-            gene1[idx] = SexSims.id(x[i])
-            gene2[idx] = SexSims.id(x[j])
-            d = SexSims.distance(rec, mito[i], mito[j], "mutation")
-            dist[idx] = isnull(d) ? NA : get(d)
-            idx += 1
-        end
-    end
-    for i = 1:length(y)
-        for j = (i+1):length(y)
-            chr[idx] = "autosome"
-            gene1[idx] = SexSims.id(y[i])
-            gene2[idx] = SexSims.id(y[j])
-            d = SexSims.distance(rec, mito[i], mito[j], "mutation")
-            dist[idx] = isnull(d) ? NA : get(d)
-            idx += 1
-        end
-    end
-    for i = 1:length(mito)
-        for j = (i+1):length(mito)
-            chr[idx] = "autosome"
-            gene1[idx] = SexSims.id(mito[i])
-            gene2[idx] = SexSims.id(mito[j])
-            d = SexSims.distance(rec, mito[i], mito[j], "mutation")
-            dist[idx] = isnull(d) ? NA : get(d)
-            idx += 1
-        end
-    end
-    data = DataFrame(chr = chr, gene1 = gene1, gene2 = gene2, distance = dist)
+    idx = recorddistance!(idx, rec, "autosome", chr, gene1, gene2, dist, a)
+    idx = recorddistance!(idx, rec, "x", chr, gene1, gene2, dist, x)
+    idx = recorddistance!(idx, rec, "y", chr, gene1, gene2, dist, y)
+    idx = recorddistance!(idx, rec, "mito", chr, gene1, gene2, dist, mito)
+    data = DataFrame(chromosome = chr, allele_id_1 = gene1, allele_id_2 = gene2, distance = dist)
     writetable(path, data, separator = '\t')
 end
 
-function getmigrations(path)
+function getmigrations(path,rec, pop)
+    len = 5 * length(pop[SexSims.Female].data) + 4 * length(pop[SexSims.Male].data)
+    ids = Array(Int, len)
+    demes = Array(Int, len)
+    sexes = Array(ASCIIString, len)
+    chrs = Array(ASCIIString, len)
+    alleles = Array(Int, len)
+    nmigs = Array(Int, len)
 
-    println("deme\tsex\torganism\tchromosome\tallele.index\tmigration.index")
-    orgs = pop[Female]
-    b = orgs.size[1]
     idx = 1
-    for i = 1:length(orgs.data)
-        deme = i <= b ? 1 : 2
-        for j = 1:2
-            println("$deme\tfemale\t$idx\tautosome\t$(SexSims.id(orgs.data[i].auto[j]))\t$(SexSims.mig(orgs.data[i].auto[j]))")
+    i = 1
+    d = 1
+    loc = 1
+    s = pop[SexSims.Female].size[1]
+    for org in pop[SexSims.Female].data
+        loc = d <= s ? 1 : 2
+        for (c, chrstr) in zip((:auto, :x), ("autosome", "x"))
+            for l in getfield(org, c)
+                ids[idx] = i
+                sexes[idx] = "female"
+                chrs[idx] = chrstr
+                alleles[idx] = convert(Int, SexSims.id(l))
+                nmigs[idx] = SexSims.countalong(rec, l, SexSims.MIGRATION)
+                demes[idx] = loc
+                idx += 1
+            end
         end
-        for j = 1:2
-            println("$deme\tfemale\t$idx\tx\t$(SexSims.id(orgs.data[i].x[j]))\t$(SexSims.mig(orgs.data[i].x[j]))")
-        end
-        println("$deme\tfemale\t$idx\tmito\t$(SexSims.id(orgs.data[i].mito))\t$(SexSims.mig(orgs.data[i].mito))")
+        ids[idx] = i
+        sexes[idx] = "female"
+        chrs[idx] = "mitochondrion"
+        alleles[idx] = convert(Int, SexSims.id(org.mito))
+        nmigs[idx] = SexSims.countalong(rec, org.mito, SexSims.MIGRATION)
+        demes[idx] = loc
         idx += 1
+        i += 1
+        d += 1
     end
-    orgs = pop[Male]
-    b = orgs.size[1]
-    for i = 1:length(orgs.data)
-        deme = i <= b ? 1 : 2
-        for j = 1:2
-            println("$deme\tmale\t$idx\tautosome\t$(SexSims.id(orgs.data[i].auto[j]))\t$(SexSims.mig(orgs.data[i].auto[j]))")
+    d = 1
+    s = pop[SexSims.Male].size[1]
+    for org in pop[SexSims.Male].data
+        loc = d <= s ? 1 : 2
+        for a in org.auto
+            ids[idx] = i
+            sexes[idx] = "male"
+            chrs[idx] = "autosome"
+            alleles[idx] = convert(Int, SexSims.id(a))
+            nmigs[idx] = SexSims.countalong(rec, a, SexSims.MIGRATION)
+            demes[idx] = s
+            idx += 1
         end
-        println("$deme\tmale\t$idx\tx\t$(SexSims.id(orgs.data[i].x))\t$(SexSims.mig(orgs.data[i].x))")
-        println("$deme\tmale\t$idx\ty\t$(SexSims.id(orgs.data[i].y))\t$(SexSims.mig(orgs.data[i].y))")
-        idx += 1
+        for (c, chrstr) in zip((:x, :y), ("x", "y"))
+            ids[idx] = i
+            sexes[idx] = "male"
+            chrs[idx] = chrstr
+            alleles[idx] = convert(Int, SexSims.id(getfield(org, c)))
+            nmigs[idx] = SexSims.countalong(rec, getfield(org, c), SexSims.MIGRATION)
+            demes[idx] = s
+            idx += 1
+        end
+        i += 1
+        d += 1
     end
+
+    data = DataFrame(organism_id = ids, sex = sexes, deme = demes ,chromosome = chrs, allele_id = alleles , number_of_migrations = nmigs)
+    writetable(path, data, separator = '\t')
 end
 
 function main()
