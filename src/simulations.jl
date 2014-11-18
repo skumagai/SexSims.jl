@@ -1,7 +1,7 @@
 using SexSims
 using JSON
 using Distributions: Binomial
-
+using DataFrames: DataFrame, writetable
 
 # functions to parse input parameters from JSON and convert to appropriate format
 function learningrate(ps, from, to)
@@ -43,8 +43,8 @@ function nbefore!(nb, n, m)
     end
 end
 
-function simulation()
-    params = JSON.parsefile(ARGS[1])
+function simulation(config)
+    params = JSON.parsefile(config)
     srand(1)
     tmax = 10
     # Population sizes of adults participating in reproduction.  These numbers are per-deme.
@@ -117,7 +117,80 @@ function simulation()
     rec, children
 end
 
-function summarize(rec, pop)
+function summarize(config, rec, pop)
+    i = 1
+    while isfile("$config-$i")
+        i += 1
+    end
+    outfile = "$config-$i"
+    mkdir(outfile)
+    getmigrations(joinpath(outfile, "migrations.tsv"))
+    getdistance(joinpath(outfile, "dist.tsv"))
+end
+
+function getdistance(path, rec, pop)
+    a = unique(vcat(unique([SexSims.id(gene) for ind in pop[SexSims.Female] for gene in ind.auto]),
+                    unique([SexSims.id(gene) for ind in pop[SexSims.Male] for gene in ind.auto])))
+    x = unique(vcat(unique([SexSims.id(gene) for ind in pop[SexSims.Female] for gene in ind.x]),
+                    unique([SexSims.id(ind.x) for ind in pop[SexSims.Male]])))
+    y = unique([SexSims.id(ind.y) for ind in pop[SexSims.Male]])
+    mito = unique([SexSims.id(ind.mito) for ind.pop[SexSims.Female]])
+    sort!(a)
+    sort!(x)
+    sort!(y)
+    sort!(mito)
+    nelem = length(a) * (length(a) - 1) + length(x) * (length(x) - 1) + length(y) * (length(y) - 1) + length(mito) * (length(mito) - 1)
+    chr = Array(ASCIIString, nelem)
+    gene1 = Array(Int, nelem)
+    gene2 = Array(Int, nelem)
+    dist = DataArray(Int, nelem)
+    idx = 1
+    for i = 1:length(a)
+        for j = (i+1):length(a)
+            chr[idx] = "autosome"
+            gene1[idx] = SexSims.id(a[i])
+            gene2[idx] = SexSims.id(a[j])
+            d = SexSims.distance(rec, mito[i], mito[j], "mutation")
+            dist[idx] = isnull(d) ? NA : get(d)
+            idx += 1
+        end
+    end
+    for i = 1:length(x)
+        for j = (i+1):length(x)
+            chr[idx] = "autosome"
+            gene1[idx] = SexSims.id(x[i])
+            gene2[idx] = SexSims.id(x[j])
+            d = SexSims.distance(rec, mito[i], mito[j], "mutation")
+            dist[idx] = isnull(d) ? NA : get(d)
+            idx += 1
+        end
+    end
+    for i = 1:length(y)
+        for j = (i+1):length(y)
+            chr[idx] = "autosome"
+            gene1[idx] = SexSims.id(y[i])
+            gene2[idx] = SexSims.id(y[j])
+            d = SexSims.distance(rec, mito[i], mito[j], "mutation")
+            dist[idx] = isnull(d) ? NA : get(d)
+            idx += 1
+        end
+    end
+    for i = 1:length(mito)
+        for j = (i+1):length(mito)
+            chr[idx] = "autosome"
+            gene1[idx] = SexSims.id(mito[i])
+            gene2[idx] = SexSims.id(mito[j])
+            d = SexSims.distance(rec, mito[i], mito[j], "mutation")
+            dist[idx] = isnull(d) ? NA : get(d)
+            idx += 1
+        end
+    end
+    data = DataFrame(chr = chr, gene1 = gene1, gene2 = gene2, distance = dist)
+    writetable(path, data, separator = '\t')
+end
+
+function getmigrations(path)
+
     println("deme\tsex\torganism\tchromosome\tallele.index\tmigration.index")
     orgs = pop[Female]
     b = orgs.size[1]
@@ -148,7 +221,10 @@ end
 
 function main()
     length(ARGS) != 1 && error("Usage: julia simulation.jl inputfile")
-    summarize(simulation()...)
+    config = ARGS[1]
+    isfile(config) || error("Not a file: $config")
+    rec, pop = simulation(config)
+    summarize(config, rec, pop)
 end
 
 main()
