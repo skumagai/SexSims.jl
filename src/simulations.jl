@@ -118,15 +118,9 @@ function simulation(config)
     rec, children
 end
 
-function summarize(config, rec, pop)
-    i = 1
-    while isdir("$config-$i")
-        i += 1
-    end
-    outfile = "$config-$i"
-    mkdir(outfile)
-    getmigrations(joinpath(outfile, "migrations.tsv"), rec, pop)
-    getdistance(joinpath(outfile, "dist.tsv"), rec, pop)
+function summarize(dir, rec, pop)
+    getmigrations(joinpath(dir, "migrations.tsv"), rec, pop)
+    getdistance(joinpath(dir, "dist.tsv"), rec, pop)
 end
 
 function listuniquegenes(genes)
@@ -245,12 +239,38 @@ function getmigrations(path,rec, pop)
     writetable(path, data, separator = '\t')
 end
 
+function getresultdir(config)
+    i = 1
+    while isdir("$config-$i")
+        i += 1
+    end
+    dir = "$config-$i"
+    mkdir(dir)
+    dir
+end
+
+function record(path, str)
+    f = open(path, "a")
+    write(f, str)
+    close(f)
+end
+
 function main()
     length(ARGS) != 1 && error("Usage: julia simulation.jl inputfile")
     config = ARGS[1]
     isfile(config) || error("Not a file: $config")
+    resultdir = getresultdir(config)
+    logf = joinpath(resultdir, "simulation.log")
+    seed = rand(1:typemax(UInt32))
+    record(logf, "$(strftime(time())) Simulation launched\n")
+    record(logf, "$(strftime(time())) Results stored at: $resultdir\n")
+    record(logf, "$(strftime(time())) RNG Seed: $(rand(1:seed))\n")
+    srand(seed)
     rec, pop = simulation(config)
-    summarize(config, rec, pop)
+    record(logf, "$(strftime(time())) Simulation finished\n")
+    record(logf, "$(strftime(time())) Saving results\n")
+    summarize(resultdir, rec, pop)
+    record(logf, "$(strftime(time())) Done\n")
 end
 
 main()
