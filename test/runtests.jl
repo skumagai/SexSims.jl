@@ -3,5 +3,7 @@ using SexSims
 
 include("types.jl")
 include("genes.jl")
+include("chromosomes.jl")
 include("individuals.jl")
-include("populations.jl")
+include("modelspecifics.jl")
+include("ios.jl")

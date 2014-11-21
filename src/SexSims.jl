@@ -1,10 +1,10 @@
 module SexSims
 
-export Female, Male, Population, ParentIds, GeneStateRecorder, migrate!, fitness!, learn!, reproduce!, pickparents!
-
 include("types.jl")
 include("genes.jl")
+include("chromosomes.jl")
 include("individuals.jl")
-include("populations.jl")
+include("ios.jl")
+include("modelspecifics.jl")
 
 end

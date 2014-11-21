@@ -1,40 +1,42 @@
-export Gene, Change, GeneStateRecorder, id, mig, from, gen, migrate!, mutate!
+export Gene, Change, GeneStateRecorder, migrate!, mutate!
 
-const MUTATION = 0x0
-const MIGRATION = 0x1
+immutable EventType
+    event::UInt8
+    str::ASCIIString
+end
+const Mutation = EventType(0x1, "mutation")
+const Migration = EventType(0x2, "migration")
 
 immutable Gene
-    id::StateIndex
-    mig::StateIndex
+    id::UInt
+    mig::UInt
 end
-id(g::Gene) = g.id
-mig(g::Gene) = g.mig
 
-immutable Change
-    gen::Generation
-    from::StateIndex
-    kind::EventType
-end
-from(c::Change) = c.from
-gen(c::Change) = c.gen
-function kind(c::Change)
-    if c.kind == MUTATION
-        "mutation"
-    elseif c.kind == MIGRATION
-        "migration"
-    else
-        "undefined"
+function getid(g::Gene, event)
+    if event == Mutation
+        g.id
+    elseif event == Migration
+        g.mig
     end
 end
 
+immutable Change
+    gen::Int
+    from::UInt
+    kind::EventType
+end
+parent(c::Change) = c.from
+generation(c::Change) = c.gen
+kind(c::Change) = c.kind.str
+
 type GeneStateRecorder
-    next::StateIndex
+    next::UInt
     data::Vector{Vector{Change}}
-    chunk::Int
+    chunk::UInt
 end
 
 function GeneStateRecorder(step)
-    vec = Array(Array{Change, 1}, 1)
+    vec = Array(Vector{Change}, 1)
     vec[1] = Array(Change, step)
     GeneStateRecorder(0, vec, step)
 end
@@ -63,30 +65,22 @@ function prepare!(t, v, typ, st)
     st.data[i][j] = Change(t, v, typ)
 end
 
+mutate!(t, g, mut, st) = rand() < mut ? mutate!(t, g, st) : g
+
 function mutate!(t, g::Gene, st::GeneStateRecorder)
-    prepare!(t, g.id, MUTATION, st)
+    prepare!(t, g.id, Mutation, st)
     Gene(st.next, g.mig)
 end
 
 function migrate!(t, g::Gene, st::GeneStateRecorder)
-    prepare!(t, g.mig, MIGRATION, st)
+    prepare!(t, g.mig, Migration, st)
     Gene(g.id, st.next)
 end
 
-function _getid(gene, event)
-    if event == MIGRATION
-        mig(gene)
-    elseif event == MUTATION
-        id(gene)
-    else
-        error("Undefined event type")
-    end
-end
-
 function countalong(st, gene, event)
-    idx = _getid(gene, event)
+    idx = getid(gene, event)
     n = 0
-    while idx != 0x0
+    while idx != ANCESTRAL
         idx = st[idx].from
         n += 1
     end
@@ -94,13 +88,13 @@ function countalong(st, gene, event)
 end
 
 function eventintervals(st, gene, event)
-    idx = _getid(gene, event)
+    idx = getid(gene, event)
     n = countalong(st, gene, event)
     data = Array(Int, n - 1)
     next = st[idx].from
     i = 1
-    while next != 0x0
-        data[i] = gen(st[idx]) - gen(st[next])
+    while next != ANCESTRAL
+        data[i] = generation(st[idx]) - generation(st[next])
         i += 1
         next, idx = st[next].from, next
     end
@@ -108,11 +102,11 @@ function eventintervals(st, gene, event)
 end
 
 function listevents(st, gene, event)
-    idx = _getid(gene, event)
+    idx = getid(gene, event)
     n = countalong(st, gene, event)
-    data = Array(Int, n)
+    data = Array(UInt, n)
     i = 1
-    while idx != 0x0
+    while idx != ANCESTRAL
         data[i] = idx
         idx = st[idx].from
         i += 1
