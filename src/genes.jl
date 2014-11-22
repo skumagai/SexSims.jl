@@ -1,5 +1,3 @@
-export Gene, Change, GeneStateRecorder, migrate!, mutate!
-
 immutable EventType
     event::UInt8
     str::ASCIIString
@@ -11,6 +9,8 @@ immutable Gene
     id::UInt
     mig::UInt
 end
+
+Gene() = Gene(0x0, 0x0)
 
 function getid(g::Gene, event)
     if event == Mutation

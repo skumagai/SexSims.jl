@@ -1,11 +1,8 @@
-using SexSims: readinput, migrate!, getresultdir, openlog, writelog, closelog, nmigrants!, nbefore!, Organism, Autosome, XYChromosome, Mitochondrion, Female, Male, makeancestor, GeneStateRecorder, learn
-using JSON
-using Distributions: Binomial
-using DataFrames: DataFrame, writetable
-using DataArrays: DataArray, NA
+using SexSims: readinput, migrate!, getresultdir, openlog, writelog, closelog, nmigrants!, nbefore!, Organism, Autosome, XYChromosome, Mitochondrion, Female, Male, makeancestor, GeneStateRecorder, learn, savedistance, savemigrations
+using StatsBase: sample
 
 @inline indeme1(x) = 0x1 == x ? true : false
-@inline indeme2(x) = !deme1(x)
+@inline indeme2(x) = !indeme1(x)
 
 function simulate(config)
     p = readinput(config)
@@ -13,16 +10,14 @@ function simulate(config)
     tmax = 10
 
     # number of migrants
-    fmig = Array(Int, 2)
-    mmig = Array(Int, 2)
+    migs = (Array(Int, 2), Array(Int, 2))
     # deme-specific number of offspring
-    nfo = Array(Int, 2)
-    nmo = Array(Int, 2)
+    no = (Array(Int, 2), Array(Int, 2))
 
-    nmigrants!(fmig, p.n[1], p.v[1])
-    nmigrants!(mmig, p.n[2], p.v[2])
-    nbefore!(nfo, p.n[1], fmig)
-    nbefore!(nmo, p.n[2], mmig)
+    for i = 1:2
+        nmigrants!(migs[i], p.n[i], p.v[i])
+        nbefore!(no[i], p.n[i], migs[i])
+    end
 
     ps = (Array(Organism{(Autosome{1}, XYChromosome{1}, Mitochondrion{1})}, sum(p.n[1])),
           Array(Organism{(Autosome{1}, XYChromosome{1}, Mitochondrion{1})}, sum(p.n[2])))
@@ -37,34 +32,38 @@ function simulate(config)
     ptrait = deepcopy(ploc)
     ctrait = deepcopy(cloc)
 
-    rec = GeneStateRecorder(10 * (sum(p.n[1]) + sum(p.n[2])))
+    rec = GeneStateRecorder(20 * (sum(p.n[1]) + sum(p.n[2])))
 
     indeme = (indeme1, indeme2)
 
     for t = 1:tmax
-        println(t)
+        println("generation: $t")
         ps, cs = cs, ps
         ptrait, ctrait = ctrait, ptrait
         ploc, cloc = cloc, ploc
 
         # mating
-        for (c, loc, trait, n, m, sex, j) in zip(cs, cloc, ctrait, (nfo, nmo), (fmig, mmig), (Female, Male), 1:2)
+        for (c, loc, trait, sex, j) in zip(cs, cloc, ctrait, (Female, Male), 1:2)
+            # decide number of local and migrating individuals in next-generation.
+            nmigrants!(migs[j], p.n[j], p.v[j])
+            nbefore!(no[j], p.n[j], migs[j])
+
             idx = 1
             for deme = 0x1:0x2
                 mpos = find(indeme[deme], ploc[1])
                 ppos = find(indeme[deme], ploc[2])
-                migs = rand(1:n[deme], m[deme])
-                for i = 1:n[deme]
-                    mid = rand(mpos)
-                    pid = rand(ppos)
+                miglist = rand(1:p.n[j][deme], migs[j][deme])
+                for i = 1:no[j][deme]
+                    mid = sample(mpos)
+                    pid = sample(ppos)
                     tval = learn(deme, ptrait[1][mid], ptrait[2][pid], p.l[1][j][deme], p.l[2][j][deme])
-                    while p.fit[j][deme, t] > rand()
-                        mid = rand(mpos)
-                        pid = rand(ppos)
+                    while rand() > p.fit[j][deme, tval]
+                        mid = sample(mpos)
+                        pid = sample(ppos)
                         tval = learn(deme, ptrait[1][mid], ptrait[2][pid], p.l[1][j][deme], p.l[2][j][deme])
                     end
                     trait[idx] = tval
-                    if idx in migs
+                    if i in migs
                         loc[idx] = 0x3 - deme
                         o = Organism(t, ps[1][mid], ps[2][pid], p.mut, rec, sex)
                         c[idx] = migrate!(t, o, rec, sex)
@@ -72,22 +71,17 @@ function simulate(config)
                         loc[idx] = deme
                         c[idx] = Organism(t, ps[1][mid], ps[2][pid], p.mut, rec, sex)
                     end
-                    didx += 1
+                    idx += 1
                 end
             end
         end
-        # decide number of local and migrating individuals in next-generation.
-        nmigrants!(fmig, p.n[1], p.v[1])
-        nmigrants!(mmig, p.n[2], p.v[2])
-        nbefore!(nfo, p.n[1], fmig)
-        nbefore!(nmo, p.n[2], mmig)
     end
     rec, cs
 end
 
 function summarize(dir, rec, pop)
-    getmigrations(joinpath(dir, "migrations.tsv"), rec, pop)
-    getdistance(joinpath(dir, "dist.tsv"), rec, pop)
+    #savemigrations(joinpath(dir, "migrations.tsv"), rec, pop)
+    savedistance(joinpath(dir, "dist.tsv"), rec, pop)
 end
 
 
@@ -107,7 +101,7 @@ function main()
     rec, pop = simulate(config)
     writelog(logh, "$(strftime(time())) Simulation finished\n")
     writelog(logh, "$(strftime(time())) Saving results\n")
-#    summarize(resultdir, rec, pop)
+    summarize(resultdir, rec, pop)
     writelog(logh, "$(strftime(time())) Done\n")
     closelog(logh)
 end

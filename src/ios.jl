@@ -44,6 +44,7 @@ function learningrate(ps, from, to)
 end
 
 trait2fitness(ps) = [convert(Vector{Float64}, ps[1]) convert(Vector{Float64}, ps[2])]'
+
 # Output functions
 function getresultdir(config)
     i = 1
@@ -83,7 +84,52 @@ function recorddistance!(idx, rec, chrstr, chr, gene1, gene2, dist, alleles)
     idx
 end
 
-function getdistance(path, rec, pop)
+function savedistance(path, rec, pop)
+    n = [length(pop[1]), length(pop[2])]
+    #
+    nloci = 0
+    ngenes = 0
+    chrlist = typeof(pop[1][1])
+
+    for chr in chrlist
+        if chr <: Autosome
+            ngenes += 2 * chr.parameters[1] * sum(n)
+            nloci += 1
+        elseif chr <: XYChromosome
+            ngenes += 2 * chr.parameters[1] * sum(n)
+            nloci += 2
+        else
+
+            ngenes += chr.parameters[1] * n[1]
+        end
+    end
+
+    genes = Array(Gene, ngenes)
+    loci = Array(Int, ngenes)
+    inds = Array(Int, ngenes)
+
+    colidx = 1
+    indidx = 1
+    for org in pop[1]
+        locusidx = 1
+        for c in p.chrs, gs in getgenotype(c)
+            if isa(c, Autosome)
+                for g in gs
+                    genes[colidx] = g
+                    chrnames[colidx] = "autosome"
+                    loci
+
+            elseif isa(c, XYChromosome)
+
+            else
+            end
+            colidx += 1
+            locusidx += 1
+        end
+        indidx += 1
+    end
+
+
     agene = vcat([[gene for gene in ind.auto] for ind in pop[SexSims.Female].data]...,
                  [[gene for gene in ind.auto] for ind in pop[SexSims.Male].data]...)
     xgene = vcat([[gene for gene in ind.auto] for ind in pop[SexSims.Female].data]...,
@@ -104,11 +150,11 @@ function getdistance(path, rec, pop)
     idx = recorddistance!(idx, rec, "x", chr, gene1, gene2, dist, x)
     idx = recorddistance!(idx, rec, "y", chr, gene1, gene2, dist, y)
     idx = recorddistance!(idx, rec, "mito", chr, gene1, gene2, dist, mito)
-    data = DataFrame(chromosome = chr, allele_id_1 = gene1, allele_id_2 = gene2, distance = dist)
+    data = DataFrame(chromosome = chr, locus_id = loci, allele_id_1 = gene1, allele_id_2 = gene2, distance = dist)
     writetable(path, data, separator = '\t')
 end
 
-function getmigrations(path,rec, pop)
+function savemigrations(path,rec, pop)
     len = 5 * length(pop[SexSims.Female].data) + 4 * length(pop[SexSims.Male].data)
     ids = Array(Int, len)
     demes = Array(Int, len)

@@ -1,9 +1,7 @@
 using Base.Test
-using SexSims
 
-include("types.jl")
-include("genes.jl")
-include("chromosomes.jl")
-include("individuals.jl")
-include("modelspecifics.jl")
-include("ios.jl")
+for testfile in ["types", "genes", "chromosomes", "individuals", "modelspecifics", "ios"]
+    info("start test for $testfile.jl")
+    include("$testfile.jl")
+    info("finish test for $testfile.jl")
+end

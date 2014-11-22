@@ -1,72 +1,65 @@
-export Autosome, XYChromosome, Mitochondrion
-export makeancestor, meiosis, fuse
-
 typealias Loci{N} NTuple{N, Gene}
 
 abstract Chromosome
 
 immutable Autosome{N} <: Chromosome
-    loci::NTuple{2, Loci{N}}
+    loci1::Loci{N}
+    loci2::Loci{N}
 end
 
-immutable XYChromosome{N} <: Chromosome
-    loci::NTuple{2, Loci{N}}
+immutable XChromosome{N} <: Chromosome
+    loci1::Loci{N}
+    loci2::Loci{N}
 end
+
+immutable YChromosome{N} <: Chromosome
+    loci1::Loci{N}
+end
+YChromosome{N}(loc1::Loci{N}, loc2::Loci{N}) = YChromosome{N}(loc2)
 
 immutable Mitochondrion{N} <: Chromosome
-    loci::NTuple{1, Loci{N}}
+    loci1::Loci{N}
 end
+Mitochondrion{N}(loc1::Loci{N}, loc2::Loci{N}) = Mitochondrion{N}(loc1)
 
 function makeancestor{T<:Chromosome}(chr::Type{T})
-    chr1 = [Gene(0x0, 0x0) for _ = 1:chr.parameters[1]]
+    chr1 = [Gene() for _ = 1:chr.parameters[1]]
     chr2 = copy(chr1)
-    chr((tuple(chr1...), tuple(chr2...)))
+    chr(tuple(chr1...), tuple(chr2...))
 end
 
-function makeancestor{T<:Mitochondrion}(chr::Type{T})
-    chr((tuple([Gene(0x0, 0x0) for i = 1:chr.parameters[1]]...),))
-end
+makeancestor{T<:Union(YChromosome, Mitochondrion)}(chr::Type{T}) = chr(tuple([Gene() for _ = 1:chr.parameters[1]]...))
 
-Base.length(c::Chromosome) = length(c.loci[1])
+Base.length(c::Chromosome) = length(c.loci1)
 
-function meiosis{S1<:Sex, S2<:Sex}(t, chr::Autosome, mut, rec, ::Type{S1}, ::Type{S2})
+function meiosis(t, chr::Chromosome, mut, rec, ::Union(Type{Female}, Type{Male}), ::Union(Type{Female}, Type{Male}))
     dchr = Array(Gene, length(chr))
-    for (i, (gene1, gene2)) = enumerate(zip(chr.loci[1], chr.loci[2]))
+    for (i, (gene1, gene2)) = enumerate(zip(chr.loci1, chr.loci2))
         gene = rand() < 0.5 ? gene1 : gene2
         dchr[i] = mutate!(t, gene, mut, rec)
     end
     tuple(dchr...)
 end
 
-function meiosis(t, chr::XYChromosome, mut, rec, ::Type{Male}, ::Type{Female})
-    tuple([mutate!(t, gene, mut, rec) for gene in chr.loci[1]]...)
-end
+meiosis(t, chr::XChromosome, mut, rec, ::Type{Male}, ::Type{Female}) = tuple([mutate!(t, gene, mut, rec) for gene in chr.loci1]...)
+meiosis(t, chr::XChromosome, mut, rec, ::Type{Male}, ::Type{Male}) = chr.loci1
+meiosis(t, chr::YChromosome, mut, rec, ::Type{Male}, ::Type{Male}) = tuple([mutate!(t, gene, mut, rec) for gene in chr.loci1]...)
+meiosis(t, chr::YChromosome, mut, rec, ::Union(Type{Female}, Type{Male}), ::Union(Type{Female}, Type{Male})) = chr.loci1
+meiosis(t, chr::Mitochondrion, mut, rec, ::Type{Female}, ::Type{Female}) = tuple([mutate!(t, gene, mut, rec) for gene in chr.loci1]...)
+meiosis(t, chr::Mitochondrion, mut, rec, ::Union(Type{Female}, Type{Male}), ::Union(Type{Female}, Type{Male})) = chr.loci1
 
-function meiosis(t, chr::XYChromosome, mut, rec, ::Type{Male}, ::Type{Male})
-    tuple([mutate!(t, gene, mut, rec) for gene in chr.loci[2]]...)
-end
+fuse{T<:Chromosome}(chr1, chr2, ::Type{T}) = T(chr1, chr2)
+fuse{T<:YChromosome}(chr1, chr2, ::Type{T}) = T(chr2)
+fuse{T<:Mitochondrion}(chr1, chr2, ::Type{T}) = T(chr1)
 
-function meiosis(t, chr::Mitochondrion, mut, rec, ::Type{Female}, ::Type{Female})
-    tuple([mutate!(t, gene, mut, rec) for gene in chr.loci[1]]...)
-end
-
-function meiosis{S1<:Sex, S2<:Sex}(t, chr::Mitochondrion, mut, rec, ::Type{S1}, ::Type{S2})
-    chr.loci[1]
-end
-
-fuse{T<:Chromosome}(chr1, chr2, ::Type{T}) = T((chr1, chr2))
-fuse{T<:Mitochondrion}(chr1, chr2, ::Type{T}) = T((chr1,))
-
-function migrate!{S<:Sex}(t, chr::Chromosome, rec, sex::Type{S})
-    typeof(chr)((migrate!(t, chr.loci[1], rec, sex), migrate!(t, chr.loci[2], rec, sex)))
-end
-
-function migrate!(t, chr::Mitochondrion, rec, ::Type{Female})
-    Mitochondrion((migrate!(t, chr.loci[1], rec, Female),))
-end
-
+migrate!(t, chr::Chromosome, rec, ::Union(Type{Female}, Type{Male})) = typeof(chr)(migrate!(t, chr.loci1, rec), migrate!(t, chr.loci2, rec))
+migrate!(t, chr::XChromosome, rec, ::Type{Male}) = typeof(chr)(migrate!(t, chr.loci1, rec), chr.loci2)
+migrate!(t, chr::YChromosome, rec, ::Type{Female}) = chr
+migrate!(t, chr::YChromosome, rec, ::Type{Male}) = typeof(chr)(migrate!(t, chr.loci1, rec))
+migrate!(t, chr::Mitochondrion, rec, ::Type{Female}) = typeof(chr)(migrate!(t, chr.loci1, rec))
 migrate!(t, chr::Mitochondrion, rec, ::Type{Male}) = chr
+migrate!(t, loci::(Gene...), rec) = tuple([migrate!(t, locus, rec) for locus in loci]...)
 
-function migrate!{S<:Sex}(t, loci::(Gene...), rec, ::Type{S})
-    tuple([migrate!(t, locus, rec) for locus in loci]...)
-end
+getgenotype(chr::Chromosome) = [(loc1, loc2) for (loc1, loc2) in zip(chr.loci1, chr.loci2)]
+getgenotype(chr::Union(YChromosome, Mitochondrion)) = [(loc1,) for loc1 in chr.loci1]
+
