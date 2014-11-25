@@ -1,4 +1,6 @@
 using JSON
+using DataArrays: DataArray, NA
+using DataFrames: DataFrame, writetable
 
 # Input functions
 immutable Parameters
@@ -60,163 +62,212 @@ openlog(logfile) = open(logfile, "a")
 closelog(log) = close(log)
 writelog(log, str) = write(log, str)
 
-function listuniquegenes(genes)
-    dict = Dict{SexSims.StateIndex, SexSims.Gene}()
-    for gene in genes
-        if !haskey(dict, SexSims.id(gene))
-            dict[SexSims.id(gene)] = gene
-        end
-    end
-    [elem for elem in values(dict)]
-end
-
-function recorddistance!(idx, rec, chrstr, chr, gene1, gene2, dist, alleles)
-    for i = 1:length(alleles)
-        for j = (i+1):length(alleles)
-            chr[idx] = chrstr
-            gene1[idx] = convert(Int, SexSims.id(alleles[i]))
-            gene2[idx] = convert(Int, SexSims.id(alleles[j]))
-            d = SexSims.distance(rec, alleles[i], alleles[j], SexSims.MUTATION)
-            dist[idx] = isnull(d) ? NA : get(d)
+function getdistance!(df, idx, data, rec)
+    chr, locus, genes = string(data[1]), data[2], data[3]
+    for i = 1:length(genes)
+        for j = (i+1):length(genes)
+            df[idx, :chr_type] = chr
+            df[idx, :locus_id] = locus
+            df[idx, :gene_id_1] = genes[i]
+            df[idx, :gene_id_2] = genes[j]
+            d = distance(rec, genes[i], genes[j])
+            df[idx, :distance] = isnull(d) ? NA : get(d)
             idx += 1
         end
     end
     idx
 end
 
-function savedistance(path, rec, pop)
+function nelems(pop)
     n = [length(pop[1]), length(pop[2])]
-    #
-    nloci = 0
     ngenes = 0
-    chrlist = typeof(pop[1][1])
 
-    for chr in chrlist
+    for chr in typeof(pop[1][1]).parameters[1]
+        ntmp = chr.parameters[1]
         if chr <: Autosome
-            ngenes += 2 * chr.parameters[1] * sum(n)
-            nloci += 1
-        elseif chr <: XYChromosome
-            ngenes += 2 * chr.parameters[1] * sum(n)
-            nloci += 2
-        else
-
-            ngenes += chr.parameters[1] * n[1]
+            ngenes += 2 * ntmp * sum(n)
+        elseif chr <: XChromosome
+            ngenes += ntmp * (2 * n[1] + n[2])
+        elseif chr <: YChromosome
+            ngenes += ntmp * n[2]
+        elseif chr <: Mitochondrion
+            ngenes += ntmp * n[1]
         end
     end
+    ngenes
+end
 
-    genes = Array(Gene, ngenes)
-    loci = Array(Int, ngenes)
-    inds = Array(Int, ngenes)
+function getchrsymbol(chr)
+    if isa(chr, Autosome)
+        :autosome
+    elseif isa(chr, XChromosome)
+        :xchromosome
+    elseif isa(chr, YChromosome)
+        :ychromosome
+    elseif isa(chr, Mitochondrion)
+        :mitochondrion
+    else
+        :na
+    end
+end
 
-    colidx = 1
-    indidx = 1
-    for org in pop[1]
-        locusidx = 1
-        for c in p.chrs, gs in getgenotype(c)
-            if isa(c, Autosome)
-                for g in gs
-                    genes[colidx] = g
-                    chrnames[colidx] = "autosome"
-                    loci
+function setgene!(df, colidx, indidx, sex, deme, chr, locus, gene)
+    df[:org_id][colidx] = indidx
+    df[:sex][colidx] = sex
+    df[:deme][colidx] = deme
+    df[:chr_type][colidx] = chr
+    df[:locus_id][colidx] = locus
+    df[:gene][colidx] = gene
+    df
+end
 
-            elseif isa(c, XYChromosome)
-
-            else
+function getgenes!(pop, demes, df, colidx, indidx, ::Type{Female})
+    for (ind, d) in zip(pop, demes)
+        locidx = 1
+        for chr in ind
+            c = getchrsymbol(chr)
+            if isa(chr, Autosome) || isa(chr, XChromosome)
+                for i in 1:length(chr.loci1)
+                    setgene!(df, colidx, indidx, :female, d, c, locidx, chr.loci1[i])
+                    colidx += 1
+                    setgene!(df, colidx, indidx, :female, d, c, locidx, chr.loci2[i])
+                    colidx += 1
+                    locidx += 1
+                end
+            elseif isa(chr, YChromosome)
+                locidx += length(chr.loci1)
+            elseif isa(chr, Mitochondrion)
+                for i = 1:length(chr.loci1)
+                    setgene!(df, colidx, indidx, :female, d, c, locidx, chr.loci1[i])
+                    locidx += 1
+                    colidx += 1
+                end
             end
-            colidx += 1
-            locusidx += 1
         end
         indidx += 1
     end
+    colidx, indidx
+end
 
+function getgenes!(pop, demes, df, colidx, indidx, ::Type{Male})
+    for (ind, d) in zip(pop, demes)
+        locidx = 1
+        for chr in ind
+            c = getchrsymbol(chr)
+            if isa(chr, Autosome)
+                for i in 1:length(chr.loci1)
+                    setgene!(df, colidx, indidx, :male, d, c, locidx, chr.loci1[i])
+                    colidx += 1
+                    setgene!(df, colidx, indidx, :male, d, c, locidx, chr.loci2[i])
+                    colidx += 1
+                    locidx += 1
+                end
+            elseif isa(chr, Mitochondrion)
+                locidx += length(chr.loci1)
+            elseif isa(chr, XChromosome) || isa(chr, YChromosome)
+                for i = 1:length(chr.loci1)
+                    setgene!(df, colidx, indidx, :male, d, c, locidx, chr.loci1[i])
+                    locidx += 1
+                    colidx += 1
+                end
+            end
+        end
+        indidx += 1
+    end
+    colidx, indidx
+end
 
-    agene = vcat([[gene for gene in ind.auto] for ind in pop[SexSims.Female].data]...,
-                 [[gene for gene in ind.auto] for ind in pop[SexSims.Male].data]...)
-    xgene = vcat([[gene for gene in ind.auto] for ind in pop[SexSims.Female].data]...,
-                 [ind.x for ind in pop[SexSims.Male].data])
-    ygene = [ind.y for ind in pop[SexSims.Male].data]
-    mitogene = [ind.mito for ind in pop[SexSims.Female].data]
-    a = listuniquegenes(agene)
-    x = listuniquegenes(xgene)
-    y = listuniquegenes(ygene)
-    mito = listuniquegenes(mitogene)
-    nelem = binomial(length(a), 2) + binomial(length(x), 2) + binomial(length(y), 2) + binomial(length(mito), 2)
-    chr = Array(ASCIIString, nelem)
-    gene1 = Array(Int, nelem)
-    gene2 = Array(Int, nelem)
-    dist = DataArray(Int, nelem)
-    idx = 1
-    idx = recorddistance!(idx, rec, "autosome", chr, gene1, gene2, dist, a)
-    idx = recorddistance!(idx, rec, "x", chr, gene1, gene2, dist, x)
-    idx = recorddistance!(idx, rec, "y", chr, gene1, gene2, dist, y)
-    idx = recorddistance!(idx, rec, "mito", chr, gene1, gene2, dist, mito)
-    data = DataFrame(chromosome = chr, locus_id = loci, allele_id_1 = gene1, allele_id_2 = gene2, distance = dist)
+function getallgenes(pop, demes)
+    n = nelems(pop)
+    df = DataFrame(org_id = Array(Int, n),
+                   sex = Array(Symbol, n),
+                   deme = Array(Int8, n),
+                   chr_type = Array(Symbol, n),
+                   locus_id = Array(Int, n),
+                   gene = Array(Gene, n))
+
+    colidx, indidx = getgenes!(pop[1], demes[1], df, 1, 1, Female)
+    getgenes!(pop[2], demes[2], df, colidx, indidx, Male)
+    writetable("test.tsv", df)
+    df
+end
+
+# function getlocidata(df)
+#     loci = sort(unique(df[:locus_id]))
+#     nextgid = 0
+#     lociset = Array((Symbol, Int, Dict{UInt, Int}), length(loci))
+#     nelems = 0
+#     for (i, locus) in enumerate(loci)
+#         data = df[df[:locus_id] .== locus, [:chr_type, :locus_id, :gene]]
+#         c = data[1, :chr_type]
+#         lociset[i] = (c, locus, Dict{UInt, Int}())
+#
+#         gids = sort(unique([getid(g, Mutation) for g in data[:gene]]))
+#         for (j, gid) in enumerate(gids)
+#             lociset[i][3][gid] = nextgid + j
+#         end
+#         nextgid += length(gids)
+#         nelems += binomial(length(gids), 2)
+#     end
+#     lociset, nelems
+# end
+
+function savedistance(path, rec, df)
+    loci = sort(unique(df[:locus_id]))
+    nelems = 0
+    gs = Array(Vector{UInt}, length(loci))
+    cs = Array(ASCIIString, length(loci))
+    for (i, locus) in enumerate(loci)
+        subdf = df[df[:locus_id] .== locus, [:chr_type, :gene]]
+        genes = sort(unique([getid(g, Mutation) for g in subdf[:gene]]))
+        cs[i] = string(subdf[1, :chr_type])
+        gs[i] = [int(g) for g in genes]
+        nelems += binomial(length(genes), 2)
+    end
+    dists = DataFrame(chr_type = Array(ASCIIString, nelems),
+                      locus_id = Array(Int, nelems),
+                      gene_id_1 = Array(Int, nelems),
+                      gene_id_2 = Array(Int, nelems),
+                      distance = DataArray(Int, nelems))
+    colidx = 1
+    for (c, locus, g) in zip(cs, loci, gs)
+        colidx = getdistance!(dists, colidx, (c, locus, g), rec)
+    end
+    writetable(path, dists, separator = '\t')
+end
+
+function savemigrations(path, rec, df)
+    len = size(df, 1)
+    gids = [getid(g, Mutation) for g in df[:gene]]
+    nmigs = [countalong(rec, g, Migration) for g in df[:gene]]
+
+    data = DataFrame(org_id = df[:org_id],
+                     sex = [string(s) for s in df[:sex]],
+                     deme = df[:deme],
+                     chr_type = [string(c) for c in df[:chr_type]],
+                     locus_id = df[:locus_id],
+                     gene_id = gids,
+                     number_of_migrations = nmigs)
     writetable(path, data, separator = '\t')
 end
 
-function savemigrations(path,rec, pop)
-    len = 5 * length(pop[SexSims.Female].data) + 4 * length(pop[SexSims.Male].data)
-    ids = Array(Int, len)
-    demes = Array(Int, len)
-    sexes = Array(ASCIIString, len)
-    chrs = Array(ASCIIString, len)
-    alleles = Array(Int, len)
-    nmigs = Array(Int, len)
-
-    idx = 1
-    i = 1
-    d = 1
-    loc = 1
-    s = pop[SexSims.Female].size[1]
-    for org in pop[SexSims.Female].data
-        loc = d <= s ? 1 : 2
-        for (c, chrstr) in zip((:auto, :x), ("autosome", "x"))
-            for l in getfield(org, c)
-                ids[idx] = i
-                sexes[idx] = "female"
-                chrs[idx] = chrstr
-                alleles[idx] = convert(Int, SexSims.id(l))
-                nmigs[idx] = SexSims.countalong(rec, l, SexSims.MIGRATION)
-                demes[idx] = loc
-                idx += 1
-            end
-        end
-        ids[idx] = i
-        sexes[idx] = "female"
-        chrs[idx] = "mitochondrion"
-        alleles[idx] = convert(Int, SexSims.id(org.mito))
-        nmigs[idx] = SexSims.countalong(rec, org.mito, SexSims.MIGRATION)
-        demes[idx] = loc
-        idx += 1
-        i += 1
-        d += 1
+function samplemigintervals(path, rec, df)
+    loci = sort(unique(df[:locus_id]))
+    dfs = DataFrame[]
+    for locus in loci
+        gs = df[df[:locus_id] .== locus, :]
+        len = size(gs, 1)
+        i = rand(1:len)
+        is = eventintervals(rec, gs[i, :gene], Migration)
+        length(is) == 0 && push!(is, 0)
+        len2 = length(is)
+        sdf = DataFrame(org_id = repmat([gs[i, :org_id]], len2),
+                        chr_type = repmat([gs[i, :chr_type]], len2),
+                        sex = repmat([gs[i, :sex]], len2),
+                        deme = repmat([gs[i, :deme]], len2),
+                        locus_id = repmat([gs[i, :locus_id]], len2),
+                        intervals = is)
+        push!(dfs, sdf)
     end
-    d = 1
-    s = pop[SexSims.Male].size[1]
-    for org in pop[SexSims.Male].data
-        loc = d <= s ? 1 : 2
-        for a in org.auto
-            ids[idx] = i
-            sexes[idx] = "male"
-            chrs[idx] = "autosome"
-            alleles[idx] = convert(Int, SexSims.id(a))
-            nmigs[idx] = SexSims.countalong(rec, a, SexSims.MIGRATION)
-            demes[idx] = s
-            idx += 1
-        end
-        for (c, chrstr) in zip((:x, :y), ("x", "y"))
-            ids[idx] = i
-            sexes[idx] = "male"
-            chrs[idx] = chrstr
-            alleles[idx] = convert(Int, SexSims.id(getfield(org, c)))
-            nmigs[idx] = SexSims.countalong(rec, getfield(org, c), SexSims.MIGRATION)
-            demes[idx] = s
-            idx += 1
-        end
-        i += 1
-        d += 1
-    end
-
-    data = DataFrame(organism_id = ids, sex = sexes, deme = demes ,chromosome = chrs, allele_id = alleles , number_of_migrations = nmigs)
-    writetable(path, data, separator = '\t')
+    writetable(path, vcat(dfs...), separator = '\t')
 end

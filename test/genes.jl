@@ -68,6 +68,11 @@ gene = migrate!(9, gene, rec)
 @test countalong(rec, gene, Mutation) == 5
 @test sort(eventintervals(rec, gene, Mutation)) == [1, 1, 1, 3]
 @test sort(eventintervals(rec, gene, Migration)) == [1, 1, 2]
+rec =GeneStateRecorder(2)
+gene = Gene()
+@test sort(eventintervals(rec, gene, Migration)) == []
+gene = migrate!(1, gene, rec)
+@test sort(eventintervals(rec, gene, Migration)) == []
 
 rec = GeneStateRecorder(2)
 gene = Gene()
@@ -76,15 +81,20 @@ gene2 = mutate!(1, gene, rec)
 gene1 = mutate!(2, gene1, rec)
 gene1 = mutate!(3, gene1, rec)
 gene2 = mutate!(2, gene2, rec)
+@test listevents(rec, getid(gene1, Mutation)) == [4, 3, 1]
 @test listevents(rec, gene1, Mutation) == [4, 3, 1]
+@test listevents(rec, getid(gene2, Mutation)) == [5, 2]
 @test listevents(rec, gene2, Mutation) == [5, 2]
+@test isnull(distance(rec, getid(gene1, Mutation), getid(gene2, Mutation))) == true
 @test isnull(distance(rec, gene1, gene2, Mutation)) == true
 gene1 = mutate!(1, gene, rec)
 gene2 = mutate!(2, gene1, rec)
 gene1 = mutate!(2, gene1, rec)
 gene1 = mutate!(3, gene1, rec)
 gene2 = mutate!(3, gene2, rec)
+@test isnull(distance(rec, getid(gene1, Mutation), getid(gene2, Mutation))) == false
 @test isnull(distance(rec, gene1, gene2, Mutation)) == false
+@test get(distance(rec, getid(gene1, Mutation), getid(gene2, Mutation))) == 5
 @test get(distance(rec, gene1, gene2, Mutation)) == 5
 
 rec = GeneStateRecorder(n)

@@ -20,3 +20,7 @@ Base.length(o::Organism) = length(o.chrs)
 function migrate!{S<:Sex}(t, p, rec, sex::Type{S})
     Organism(tuple([migrate!(t, c, rec, sex) for c in p.chrs]...))
 end
+
+Base.start(o::Organism) = 0
+Base.done(o::Organism, s) = length(o) == s ? true : false
+Base.next(o::Organism, s) = o.chrs[s + 1], s + 1

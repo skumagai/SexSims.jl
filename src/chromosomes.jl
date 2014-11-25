@@ -62,4 +62,3 @@ migrate!(t, loci::(Gene...), rec) = tuple([migrate!(t, locus, rec) for locus in 
 
 getgenotype(chr::Chromosome) = [(loc1, loc2) for (loc1, loc2) in zip(chr.loci1, chr.loci2)]
 getgenotype(chr::Union(YChromosome, Mitochondrion)) = [(loc1,) for loc1 in chr.loci1]
-

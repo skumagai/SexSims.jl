@@ -17,6 +17,8 @@ function getid(g::Gene, event)
         g.id
     elseif event == Migration
         g.mig
+    else
+        0x0
     end
 end
 
@@ -77,8 +79,9 @@ function migrate!(t, g::Gene, st::GeneStateRecorder)
     Gene(g.id, st.next)
 end
 
-function countalong(st, gene, event)
-    idx = getid(gene, event)
+countalong(st, gene, event) = countalong(st, getid(gene, event))
+
+function countalong(st, idx)
     n = 0
     while idx != ANCESTRAL
         idx = st[idx].from
@@ -87,23 +90,29 @@ function countalong(st, gene, event)
     n
 end
 
-function eventintervals(st, gene, event)
-    idx = getid(gene, event)
-    n = countalong(st, gene, event)
-    data = Array(Int, n - 1)
-    next = st[idx].from
-    i = 1
-    while next != ANCESTRAL
-        data[i] = generation(st[idx]) - generation(st[next])
-        i += 1
-        next, idx = st[next].from, next
+ eventintervals(st, gene, event) = eventintervals(st, getid(gene, event))
+
+function eventintervals(st, idx)
+    n = countalong(st, idx)
+    if n > 2
+        data = Array(Int, n - 1)
+        next = st[idx].from
+        i = 1
+        while next != ANCESTRAL
+            data[i] = generation(st[idx]) - generation(st[next])
+            i += 1
+            next, idx = st[next].from, next
+        end
+        data
+    else
+        Int[]
     end
-    data
 end
 
-function listevents(st, gene, event)
-    idx = getid(gene, event)
-    n = countalong(st, gene, event)
+listevents(st, gene, event) = listevents(st, getid(gene, event))
+
+function listevents(st, idx)
+    n = countalong(st, idx)
     data = Array(UInt, n)
     i = 1
     while idx != ANCESTRAL
@@ -114,9 +123,11 @@ function listevents(st, gene, event)
     data
 end
 
-function distance(st, gene1, gene2, event)
-    data1 = listevents(st, gene1, event)
-    data2 = listevents(st, gene2, event)
+distance(st, gene1, gene2, event) = distance(st, getid(gene1, event), getid(gene2, event))
+
+function distance(st, idx1, idx2)
+    data1 = listevents(st, idx1)
+    data2 = listevents(st, idx2)
     isc = intersect(data1, data2)
     if isempty(isc)
         Nullable{Int}()

@@ -1,4 +1,4 @@
-using SexSims: readinput, migrate!, getresultdir, openlog, writelog, closelog, nmigrants!, nbefore!, Organism, Autosome, XYChromosome, Mitochondrion, Female, Male, makeancestor, GeneStateRecorder, learn, savedistance, savemigrations
+using SexSims: readinput, migrate!, getresultdir, openlog, writelog, closelog, nmigrants!, nbefore!, Organism, Autosome, XChromosome, YChromosome, Mitochondrion, Female, Male, makeancestor, GeneStateRecorder, learn, savedistance, savemigrations, getallgenes, samplemigintervals
 using StatsBase: sample
 
 @inline indeme1(x) = 0x1 == x ? true : false
@@ -19,11 +19,11 @@ function simulate(config)
         nbefore!(no[i], p.n[i], migs[i])
     end
 
-    ps = (Array(Organism{(Autosome{1}, XYChromosome{1}, Mitochondrion{1})}, sum(p.n[1])),
-          Array(Organism{(Autosome{1}, XYChromosome{1}, Mitochondrion{1})}, sum(p.n[2])))
-    cs = ([makeancestor((Autosome{1}, XYChromosome{1}, Mitochondrion{1}))
+    ps = (Array(Organism{(Autosome{1}, XChromosome{1}, YChromosome{1}, Mitochondrion{1})}, sum(p.n[1])),
+          Array(Organism{(Autosome{1}, XChromosome{1}, YChromosome{1}, Mitochondrion{1})}, sum(p.n[2])))
+    cs = ([makeancestor((Autosome{1}, XChromosome{1}, YChromosome{1}, Mitochondrion{1}))
            for _ = 1:sum(p.n[1])],
-          [makeancestor((Autosome{1}, XYChromosome{1}, Mitochondrion{1}))
+          [makeancestor((Autosome{1}, XChromosome{1}, YChromosome{1}, Mitochondrion{1}))
            for _ = 1:sum(p.n[2])])
 
     ploc = (Array(UInt8, sum(p.n[1])), Array(UInt8, sum(p.n[2])))
@@ -76,12 +76,14 @@ function simulate(config)
             end
         end
     end
-    rec, cs
+    rec, cs, cloc, ctrait
 end
 
-function summarize(dir, rec, pop)
-    #savemigrations(joinpath(dir, "migrations.tsv"), rec, pop)
-    savedistance(joinpath(dir, "dist.tsv"), rec, pop)
+function summarize(dir, rec, pop, demes, traits)
+    df = getallgenes(pop, demes)
+    savemigrations(joinpath(dir, "migrations.tsv"), rec, df)
+    savedistance(joinpath(dir, "dist.tsv"), rec, df)
+    samplemigintervals(joinpath(dir, "migintervals.tsv"), rec, df)
 end
 
 
@@ -98,10 +100,10 @@ function main()
     writelog(logh, "$(strftime(time())) Results stored in: $resultdir\n")
     writelog(logh, "$(strftime(time())) RNG Seed: $(rand(1:seed))\n")
     srand(seed)
-    rec, pop = simulate(config)
+    rec, pop, demes, traits = simulate(config)
     writelog(logh, "$(strftime(time())) Simulation finished\n")
     writelog(logh, "$(strftime(time())) Saving results\n")
-    summarize(resultdir, rec, pop)
+    summarize(resultdir, rec, pop, demes, traits)
     writelog(logh, "$(strftime(time())) Done\n")
     closelog(logh)
 end
