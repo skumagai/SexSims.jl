@@ -6,8 +6,6 @@ using StatsBase: sample
 
 function simulate(config)
     p = readinput(config)
-    srand(1)
-    tmax = 10
 
     # number of migrants
     migs = (Array(Int, 2), Array(Int, 2))
@@ -36,8 +34,8 @@ function simulate(config)
 
     indeme = (indeme1, indeme2)
 
-    for t = 1:tmax
-        println("generation: $t")
+    for t = 1:p.tmax
+        t % 1000 == 0 && info("generation: $t")
         ps, cs = cs, ps
         ptrait, ctrait = ctrait, ptrait
         ploc, cloc = cloc, ploc

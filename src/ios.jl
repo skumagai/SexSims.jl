@@ -16,6 +16,8 @@ immutable Parameters
     fit::NTuple{2, Matrix{Float64}}
     # Learning rates
     l::NTuple{2, NTuple{2, Vector{Float64}}}
+    # Number of generations to simulate
+    tmax::UInt
 end
 
 function readinput(config)
@@ -35,7 +37,8 @@ function readinput(config)
     m2fl = learningrate(params["learning"], "male", "female")
     f2ml = learningrate(params["learning"], "female", "male")
     m2ml = learningrate(params["learning"], "male", "male")
-    Parameters((nf, nm), (fv, mv), mut, (ffit, mfit), ((f2fl, f2ml), (m2fl, m2ml)))
+    t = float64(params["tmax"])
+    Parameters((nf, nm), (fv, mv), mut, (ffit, mfit), ((f2fl, f2ml), (m2fl, m2ml)), t)
 end
 
 function learningrate(ps, from, to)
