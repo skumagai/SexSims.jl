@@ -61,7 +61,7 @@ function simulate(config)
                         tval = learn(deme, ptrait[1][mid], ptrait[2][pid], p.l[1][j][deme], p.l[2][j][deme])
                     end
                     trait[idx] = tval
-                    if i in migs
+                    if i in miglist
                         loc[idx] = 0x3 - deme
                         o = Organism(t, ps[1][mid], ps[2][pid], p.mut, rec, sex)
                         c[idx] = migrate!(t, o, rec, sex)
