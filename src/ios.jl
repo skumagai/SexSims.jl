@@ -30,7 +30,7 @@ function readinput(config)
     mt = convert(Vector{Float64}, params["migration"]["male"]["cost"])
     fv = convert(Vector{Float64}, fb .* ft ./ (fb .* ft + 1 - fb))
     mv = convert(Vector{Float64}, mb .* mt ./ (mb .* mt + 1 - mb))
-    mut = convert(Float64, params["mutation probability"])
+    mut = float64(params["mutation probability"])
     ffit = trait2fitness(params["trait"]["female"])
     mfit = trait2fitness(params["trait"]["male"])
     f2fl = learningrate(params["learning"], "female", "female")
@@ -191,7 +191,6 @@ function getallgenes(pop, demes)
 
     colidx, indidx = getgenes!(pop[1], demes[1], df, 1, 1, Female)
     getgenes!(pop[2], demes[2], df, colidx, indidx, Male)
-    writetable("test.tsv", df)
     df
 end
 
