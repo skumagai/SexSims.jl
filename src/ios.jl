@@ -22,14 +22,14 @@ end
 
 function readinput(config)
     params = JSON.parsefile(config)
-    nf = convert(Vector{Int}, params["population size"]["female"])
-    nm = convert(Vector{Int}, params["population size"]["male"])
-    fb = convert(Vector{Float64}, params["migration"]["female"]["fraction"])
-    mb = convert(Vector{Float64}, params["migration"]["male"]["fraction"])
-    ft = convert(Vector{Float64}, params["migration"]["female"]["cost"])
-    mt = convert(Vector{Float64}, params["migration"]["male"]["cost"])
-    fv = convert(Vector{Float64}, fb .* ft ./ (fb .* ft + 1 - fb))
-    mv = convert(Vector{Float64}, mb .* mt ./ (mb .* mt + 1 - mb))
+    nf = int(params["population size"]["female"])
+    nm = int(params["population size"]["male"])
+    fb = float64(params["migration"]["female"]["fraction"])
+    mb = float64(params["migration"]["male"]["fraction"])
+    ft = float64(params["migration"]["female"]["cost"])
+    mt = float64(params["migration"]["male"]["cost"])
+    fv = float64(fb .* ft ./ (fb .* ft + 1 - fb))
+    mv = float64(mb .* mt ./ (mb .* mt + 1 - mb))
     mut = float64(params["mutation probability"])
     ffit = trait2fitness(params["trait"]["female"])
     mfit = trait2fitness(params["trait"]["male"])
@@ -43,12 +43,12 @@ end
 
 function learningrate(ps, from, to)
     for elem in ps
-        elem["from"] == from && elem["to"] == to && return convert(Vector{Float64}, elem["rate"])
+        elem["from"] == from && elem["to"] == to && return float64(elem["rate"])
     end
     Float64[0., 0.]
 end
 
-trait2fitness(ps) = [convert(Vector{Float64}, ps[1]) convert(Vector{Float64}, ps[2])]'
+trait2fitness(ps) = [float64(ps[1]) float64(ps[2])]'
 
 # Output functions
 function getresultdir(config)
