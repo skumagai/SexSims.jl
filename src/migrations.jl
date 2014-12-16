@@ -1,5 +1,10 @@
 using JSON
+using PyPlot
 using DataFrames: readtable
+using Distributions: Geometric, pdf
+using LaTeXStrings
+using PyPlot
+using PyCall
 
 immutable Autosome end
 immutable XChromosome end
@@ -35,45 +40,130 @@ function readinput(path)
     τm = float64(params["migration"]["male"]["cost"])
     bf = float64(params["migration"]["female"]["fraction"])
     bm = float64(params["migration"]["male"]["fraction"])
-
-    αf, αm, βf, βm, σf, σm, τf, τm, bf, bm
+    Nf = params["population size"]["female"]
+    Nm = params["population size"]["male"]
+    Dict{UTF8String, Any}(
+        "αf" => αf,
+        "αm" => αm,
+        "βf" => βf,
+        "βm" => βm,
+        "σf" => σf,
+        "σm" => σm,
+        "τf" => τf,
+        "τm" => τm,
+        "bf" => bf,
+        "bm" => bm,
+        "Nf" => Nf,
+        "Nm" => Nm
+    )
 end
 
-function getms(config)
+function getms(p)
     ms = Dict{ASCIIString, Vector{Float64}}(
-        "Autosome" => [],
-        "XChromosome" => [],
-        "YChromosome" => [],
-        "Mitochondrion" => []
+        "autosome" => [],
+        "xchromosome" => [],
+        "ychromosome" => [],
+        "mitochondrion" => []
     )
-    for (αf, αm, βf, βm, σf, σm, τf, τm, bf, bm) in zip(readinput(config)...)
-        push!(ms["Autosome"], m(αf, αm, βf, βm, σf, σm, τf, τm, bf, bm, Autosome))
-        push!(ms["XChromosome"], m(αf, αm, βf, βm, σf, σm, τf, τm, bf, bm, XChromosome))
-        push!(ms["YChromosome"], m(αf, αm, βf, βm, σf, σm, τf, τm, bf, bm, YChromosome))
-        push!(ms["Mitochondrion"], m(αf, αm, βf, βm, σf, σm, τf, τm, bf, bm, Mitochondrion))
+    for i = 1:2
+        push!(ms["autosome"], m(p["αf"][i], p["αm"][i], p["βf"][i], p["βm"][i], p["σf"][i], p["σm"][i], p["τf"][i], p["τm"][i], p["bf"][i], p["bm"][i], Autosome))
+        push!(ms["xchromosome"], m(p["αf"][i], p["αm"][i], p["βf"][i], p["βm"][i], p["σf"][i], p["σm"][i], p["τf"][i], p["τm"][i], p["bf"][i], p["bm"][i], XChromosome))
+        push!(ms["ychromosome"], m(p["αf"][i], p["αm"][i], p["βf"][i], p["βm"][i], p["σf"][i], p["σm"][i], p["τf"][i], p["τm"][i], p["bf"][i], p["bm"][i], YChromosome))
+        push!(ms["mitochondrion"], m(p["αf"][i], p["αm"][i], p["βf"][i], p["βm"][i], p["σf"][i], p["σm"][i], p["τf"][i], p["τm"][i], p["bf"][i], p["bm"][i], Mitochondrion))
     end
     ms
 end
 
-
 function getnummigs(fs)
-    intervals = Dict{"ASCIIString", Dict{Int, Int}}()
-    for f in fs
-        readtable(f)
+    intervals = Dict{Int, (ASCIIString, NTuple{2, Array{Int, 1}})}()
+    df = readtable(fs[1])
+    loci = unique(df[:locus_id])
+    for locus in loci
+        deme = first(df[df[:locus_id] .== locus, :deme])
+        chr = first(df[df[:locus_id] .== locus, :chr_type])
+        vals = df[df[:locus_id] .== locus, :intervals]
+        intervals[locus] = (chr, (vals[deme:2:end], vals[(3-deme):2:end]))
     end
+    for f in fs[2:end]
+        df = readtable(f)
+        loci = unique(df[:locus_id])
+        for locus in loci
+            deme = first(df[df[:locus_id] .== locus, :deme])
+            chr = first(df[df[:locus_id] .== locus, :chr_type])
+            vals = df[df[:locus_id] .== locus, :intervals]
+            append!(intervals[locus][2][1], vals[deme:2:end])
+            append!(intervals[locus][2][2], vals[(3-deme):2:end])
+        end
+    end
+    intervals
+end
+
+function plotresults(p, model, data, fname)
+    nloci = length(data)
+    PyPlot.figure(figsize = (9, 14))
+    # ymax = 0.0
+    # ymax2 = 0.0
+    for (i, d) in enumerate(keys(data))
+        chr = data[d][1]
+        for (j, vals) in enumerate(data[d][2])
+            xmax = maximum(vals)
+            PyPlot.subplot(nloci + 1, 2, (i - 1) * 2 + j)
+            PyPlot.plt.hist(vals, bins = 20, normed = true)
+            # ymax2 = PyPlot.plt.ylim()[2]
+            # ymax = ymax > ymax2 ? ymax : ymax2
+
+            g = Geometric(model[data[d][1]][j])
+            xs = [0:xmax]
+            PyPlot.plt.plot(xs, [pdf(g, x) for x in xs])
+            PyPlot.plt.legend(["analytical", "simulation"])
+            PyPlot.plt.title("$chr, deme = $j")
+            # ymax2 = PyPlot.plt.ylim()[2]
+            # ymax = ymax > ymax2 ? ymax : ymax2
+        end
+    end
+    # for i = 1:nloci, j = 1:2
+    #     PyPlot.plt.subplot(nloci + 1, 2, (i - 1) * 2 + j)
+    #     PyPlot.plt.ylim(0.0, ymax)
+    # end
+    for i = 1:2
+        ax = PyPlot.subplot(nloci + 1, 2, 2nloci + i)
+        PyPlot.text(0.1, 0.95, latexstring("\$N_{f,$i} = $(p["Nf"][i])\$"))
+        PyPlot.text(0.6, 0.95, latexstring("\$N_{m,$i} = $(p["Nm"][i])\$"))
+        PyPlot.text(0.1, 0.85, latexstring("\$\\alpha_{f,$i} = $(p["αf"][i])\$"))
+        PyPlot.text(0.6, 0.85, latexstring("\$\\alpha_{m,$i} = $(p["αm"][i])\$"))
+        PyPlot.text(0.1, 0.75, latexstring("\$\\beta_{f,$i} = $(p["βf"][i])\$"))
+        PyPlot.text(0.6, 0.75, latexstring("\$\\beta_{m,$i} = $(p["βm"][i])\$"))
+        PyPlot.text(0.1, 0.65, latexstring("\$\\sigma_{f,$i} = $(p["σf"][i])\$"))
+        PyPlot.text(0.6, 0.65, latexstring("\$\\sigma_{m,$i} = $(p["σm"][i])\$"))
+        PyPlot.text(0.1, 0.55, latexstring("\$\\tau_{f,$i} = $(p["τf"][i])\$"))
+        PyPlot.text(0.6, 0.55, latexstring("\$\\tau_{m,$i} = $(p["τm"][i])\$"))
+        PyPlot.text(0.1, 0.45, latexstring("\$b_{f,$i} = $(p["bf"][i])\$"))
+        PyPlot.text(0.6, 0.45, latexstring("\$b_{m,$i} = $(p["bm"][i])\$"))
+
+        PyPlot.text(0.25, 0.35, latexstring("\$m^A_$i = $(@sprintf("%.3e", model["autosome"][i]))\$"))
+        PyPlot.text(0.25, 0.25, latexstring("\$m^X_$i = $(@sprintf("%.3e", model["xchromosome"][i]))\$"))
+        PyPlot.text(0.25, 0.15, latexstring("\$m^Y_$i = $(@sprintf("%.3e", model["ychromosome"][i]))\$"))
+        PyPlot.text(0.25, 0.05, latexstring("\$m^M_$i = $(@sprintf("%.3e", model["mitochondrion"][i]))\$"))
+
+        ax[:set_frame_on](false)
+        ax[:axes][:get_xaxis]()[:set_visible](false)
+        ax[:axes][:get_yaxis]()[:set_visible](false)
+    end
+    PyPlot.plt.savefig(fname)
 end
 
 function main()
     length(ARGS) != 1 && error("Usage: julia migrations.jl inputfile")
     config = ARGS[1]
     isfile(config) || error("Not a file: $config")
-    ms = getms(config)
+    params = readinput(config)
+    ms = getms(params)
 
     files = readdir(first(splitdir(abspath(config))))
     datadirs = filter(x -> ismatch(Regex("$config-\\d"), x) && isdir(x), files)
     datafiles = [joinpath(d, "migintervals.tsv") for d in datadirs]
-    getnummigs(datafiles)
-    println(ms)
+    migs = getnummigs(datafiles)
+    plotresults(params, ms, migs, splitext(config)[1]".pdf")
 end
 
 main()
