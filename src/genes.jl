@@ -10,7 +10,7 @@ immutable Gene
     mig::UInt
 end
 
-Gene() = Gene(0x0, 0x0)
+Gene() = Gene(uint(0), uint(0))
 
 function getid(g::Gene, event)
     if event == Mutation
@@ -18,7 +18,7 @@ function getid(g::Gene, event)
     elseif event == Migration
         g.mig
     else
-        0x0
+        uint(0)
     end
 end
 
