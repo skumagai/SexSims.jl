@@ -33,9 +33,10 @@ makeancestor{T<:Union(YChromosome, Mitochondrion)}(chr::Type{T}) = chr(tuple([Ge
 Base.length(c::Chromosome) = length(c.loci1)
 
 function meiosis(t, chr::Chromosome, mut, rec, ::Union(Type{Female}, Type{Male}), ::Union(Type{Female}, Type{Male}))
-    dchr = Array(Gene, length(chr))
-    for (i, (gene1, gene2)) = enumerate(zip(chr.loci1, chr.loci2))
-        gene = rand() < 0.5 ? gene1 : gene2
+    l = length(chr)
+    dchr = Array(Gene, l)
+    for i = 1:l
+        gene = rand() < 0.5 ? chr.loci1[i] : chr.loci2[i]
         dchr[i] = mutate!(t, gene, mut, rec)
     end
     tuple(dchr...)
