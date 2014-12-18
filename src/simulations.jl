@@ -1,11 +1,11 @@
-using SexSims: readinput, migrate!, getresultdir, openlog, writelog, closelog, nmigrants!, nbefore!, Organism, Autosome, XChromosome, YChromosome, Mitochondrion, Female, Male, makeancestor, GeneStateRecorder, learn, savedistance, savemigrations, getallgenes, samplemigintervals
+using SexSims: migrate!, getresultdir, openlog, writelog, closelog, nmigrants!, nbefore!, Parameters, Organism, Autosome, XChromosome, YChromosome, Mitochondrion, Female, Male, makeancestor, GeneStateRecorder, learn, savedistance, savemigrations, getallgenes, samplemigintervals
 using StatsBase: sample
 
 @inline indeme1(x) = 0x1 == x ? true : false
 @inline indeme2(x) = !indeme1(x)
 
 function simulate(config)
-    p = readinput(config)
+    p = Parameters(config)
 
     # number of migrants
     migs = (Array(Int, 2), Array(Int, 2))
