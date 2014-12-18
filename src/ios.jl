@@ -20,35 +20,54 @@ immutable Parameters
     tmax::UInt
 end
 
-function readinput(config)
-    params = JSON.parsefile(config)
-    nf = int(params["population size"]["female"])
-    nm = int(params["population size"]["male"])
-    fb = float64(params["migration"]["female"]["fraction"])
-    mb = float64(params["migration"]["male"]["fraction"])
-    ft = float64(params["migration"]["female"]["cost"])
-    mt = float64(params["migration"]["male"]["cost"])
-    fv = float64(fb .* ft ./ (fb .* ft + 1 - fb))
-    mv = float64(mb .* mt ./ (mb .* mt + 1 - mb))
-    mut = float64(params["mutation probability"])
-    ffit = trait2fitness(params["trait"]["female"])
-    mfit = trait2fitness(params["trait"]["male"])
-    f2fl = learningrate(params["learning"], "female", "female")
-    m2fl = learningrate(params["learning"], "male", "female")
-    f2ml = learningrate(params["learning"], "female", "male")
-    m2ml = learningrate(params["learning"], "male", "male")
-    t = float64(params["tmax"])
-    Parameters((nf, nm), (fv, mv), mut, (ffit, mfit), ((f2fl, f2ml), (m2fl, m2ml)), t)
+function Parameters(config)
+    p = readinput(config)
+    fracf = p["bf"] .* p["τf"] ./ (p["bf"] .* p["τf"] + 1 - p["bf"])
+    fracm = p["bm"] .* p["τm"] ./ (p["bm"] .* p["τm"] + 1 - p["bm"])
+    Parameters((p["Nf"], p["Nm"]),
+               (fracf, fracm),
+               p["θ"],
+               (p["σf"], p["σm"]),
+               ((p["αf"], p["αm"]), (p["βf"], p["βm"])),
+               p["tmax"])
 end
 
-function learningrate(ps, from, to)
-    for elem in ps
-        elem["from"] == from && elem["to"] == to && return float64(elem["rate"])
-    end
-    Float64[0., 0.]
+function readinput(path)
+    params = JSON.parsefile(path)
+    αf = float64(first(filter(x -> x["from"] == "female" && x["to"] == "female", params["learning"]))["rate"])
+    αm = float64(first(filter(x -> x["from"] == "female" && x["to"] == "male", params["learning"]))["rate"])
+    βf = float64(first(filter(x -> x["from"] == "male" && x["to"] == "female", params["learning"]))["rate"])
+    βm = float64(first(filter(x -> x["from"] == "male" && x["to"] == "male", params["learning"]))["rate"])
+    tmp = float(vcat(params["trait"]["female"]...))
+    len = int(sqrt(length(tmp)))
+    σf = reshape(tmp, len, len)'
+    tmp = float(vcat(params["trait"]["male"]...))
+    σm = reshape(tmp, len, len)'
+    τf = float64(params["migration"]["female"]["cost"])
+    τm = float64(params["migration"]["male"]["cost"])
+    bf = float64(params["migration"]["female"]["fraction"])
+    bm = float64(params["migration"]["male"]["fraction"])
+    Nf = params["population size"]["female"]
+    Nm = params["population size"]["male"]
+    θ = params["mutation probability"]
+    tmax = params["tmax"]
+    Dict{UTF8String, Any}(
+        "αf" => αf,
+        "αm" => αm,
+        "βf" => βf,
+        "βm" => βm,
+        "σf" => σf,
+        "σm" => σm,
+        "τf" => τf,
+        "τm" => τm,
+        "bf" => bf,
+        "bm" => bm,
+        "Nf" => Nf,
+        "Nm" => Nm,
+        "θ" => θ,
+        "tmax" => tmax
+    )
 end
-
-trait2fitness(ps) = [float64(ps[1]) float64(ps[2])]'
 
 # Output functions
 function getresultdir(config)

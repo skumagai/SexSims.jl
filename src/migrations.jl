@@ -5,6 +5,7 @@ using Distributions: Geometric, pdf
 using LaTeXStrings
 using PyPlot
 using PyCall
+using SexSims: readinput
 
 immutable Autosome end
 immutable XChromosome end
@@ -28,36 +29,6 @@ m(αf, αm, βf, βm, σf, σm, τf, τm, bf, bm, ::Type{Mitochondrion}) = first
 X(af, am, bf, bm, sf, sm, ::Type{Autosome}) = diagm([sf, sm]) * diagm([0.5, 0.5]) * [af am; bf bm]
 X(af, am, bf, bm, sf, sm, ::Type{XChromosome}) = diagm([sf, sm]) * diagm([0.5, 1]) * [af am; bf 0.0]
 
-function readinput(path)
-    params = JSON.parsefile(path)
-    αf = float64(first(filter(x -> x["from"] == "female" && x["to"] == "female", params["learning"]))["rate"])
-    αm = float64(first(filter(x -> x["from"] == "female" && x["to"] == "male", params["learning"]))["rate"])
-    βf = float64(first(filter(x -> x["from"] == "male" && x["to"] == "female", params["learning"]))["rate"])
-    βm = float64(first(filter(x -> x["from"] == "male" && x["to"] == "male", params["learning"]))["rate"])
-    σf = float64([e[3-i] for (i, e) in enumerate(params["trait"]["female"])])
-    σm = float64([e[3-i] for (i, e) in enumerate(params["trait"]["male"])])
-    τf = float64(params["migration"]["female"]["cost"])
-    τm = float64(params["migration"]["male"]["cost"])
-    bf = float64(params["migration"]["female"]["fraction"])
-    bm = float64(params["migration"]["male"]["fraction"])
-    Nf = params["population size"]["female"]
-    Nm = params["population size"]["male"]
-    Dict{UTF8String, Any}(
-        "αf" => αf,
-        "αm" => αm,
-        "βf" => βf,
-        "βm" => βm,
-        "σf" => σf,
-        "σm" => σm,
-        "τf" => τf,
-        "τm" => τm,
-        "bf" => bf,
-        "bm" => bm,
-        "Nf" => Nf,
-        "Nm" => Nm
-    )
-end
-
 function getms(p)
     ms = Dict{ASCIIString, Vector{Float64}}(
         "autosome" => [],
@@ -66,10 +37,10 @@ function getms(p)
         "mitochondrion" => []
     )
     for i = 1:2
-        push!(ms["autosome"], m(p["αf"][i], p["αm"][i], p["βf"][i], p["βm"][i], p["σf"][i], p["σm"][i], p["τf"][i], p["τm"][i], p["bf"][i], p["bm"][i], Autosome))
-        push!(ms["xchromosome"], m(p["αf"][i], p["αm"][i], p["βf"][i], p["βm"][i], p["σf"][i], p["σm"][i], p["τf"][i], p["τm"][i], p["bf"][i], p["bm"][i], XChromosome))
-        push!(ms["ychromosome"], m(p["αf"][i], p["αm"][i], p["βf"][i], p["βm"][i], p["σf"][i], p["σm"][i], p["τf"][i], p["τm"][i], p["bf"][i], p["bm"][i], YChromosome))
-        push!(ms["mitochondrion"], m(p["αf"][i], p["αm"][i], p["βf"][i], p["βm"][i], p["σf"][i], p["σm"][i], p["τf"][i], p["τm"][i], p["bf"][i], p["bm"][i], Mitochondrion))
+        push!(ms["autosome"], m(p["αf"][i], p["αm"][i], p["βf"][i], p["βm"][i], p["σf"][i,3-i], p["σm"][i,3-i], p["τf"][i], p["τm"][i], p["bf"][i], p["bm"][i], Autosome))
+        push!(ms["xchromosome"], m(p["αf"][i], p["αm"][i], p["βf"][i], p["βm"][i], p["σf"][i,3-i], p["σm"][i,3-i], p["τf"][i], p["τm"][i], p["bf"][i], p["bm"][i], XChromosome))
+        push!(ms["ychromosome"], m(p["αf"][i], p["αm"][i], p["βf"][i], p["βm"][i], p["σf"][i,3-i], p["σm"][i,3-i], p["τf"][i], p["τm"][i], p["bf"][i], p["bm"][i], YChromosome))
+        push!(ms["mitochondrion"], m(p["αf"][i], p["αm"][i], p["βf"][i], p["βm"][i], p["σf"][i,3-i], p["σm"][i,3-i], p["τf"][i], p["τm"][i], p["bf"][i], p["bm"][i], Mitochondrion))
     end
     ms
 end
@@ -133,8 +104,8 @@ function plotresults(p, model, data, fname)
         PyPlot.text(0.6, 0.85, latexstring("\$\\alpha_{m,$i} = $(p["αm"][i])\$"))
         PyPlot.text(0.1, 0.75, latexstring("\$\\beta_{f,$i} = $(p["βf"][i])\$"))
         PyPlot.text(0.6, 0.75, latexstring("\$\\beta_{m,$i} = $(p["βm"][i])\$"))
-        PyPlot.text(0.1, 0.65, latexstring("\$\\sigma_{f,$i} = $(p["σf"][i])\$"))
-        PyPlot.text(0.6, 0.65, latexstring("\$\\sigma_{m,$i} = $(p["σm"][i])\$"))
+        PyPlot.text(0.1, 0.65, latexstring("\$\\sigma_{f,$i} = $(p["σf"][i,3-i])\$"))
+        PyPlot.text(0.6, 0.65, latexstring("\$\\sigma_{m,$i} = $(p["σm"][i,3-i])\$"))
         PyPlot.text(0.1, 0.55, latexstring("\$\\tau_{f,$i} = $(p["τf"][i])\$"))
         PyPlot.text(0.6, 0.55, latexstring("\$\\tau_{m,$i} = $(p["τm"][i])\$"))
         PyPlot.text(0.1, 0.45, latexstring("\$b_{f,$i} = $(p["bf"][i])\$"))
