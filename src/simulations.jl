@@ -79,9 +79,10 @@ end
 
 function summarize(dir, rec, pop, demes, traits)
     df = getallgenes(pop, demes)
-    savemigrations(joinpath(dir, "migrations.tsv"), rec, df)
+    savemigrations(joinpath(dir, "migcounts.tsv"), rec, df)
     savedistance(joinpath(dir, "dist.tsv"), rec, df)
     samplemigintervals(joinpath(dir, "migintervals.tsv"), rec, df)
+    savefst(joinpath(dir, "fst.tsv"), rec, df)
 end
 
 
