@@ -2,4 +2,5 @@ julia v0.4-
 StatsBase v0.5.4-
 DataArrays v0.2.5-
 DataFrames v0.5.12-
+Distributions v0.6.0-
 JSON v0.3.8-
