@@ -51,14 +51,17 @@ end
 trait2fitness(ps) = [float64(ps[1]) float64(ps[2])]'
 
 # Output functions
-function getresultdir(config)
-    i = 1
+function getresultdir(config, i = 1)
     while isdir("$config-$i")
         i += 1
     end
     dir = "$config-$i"
-    mkdir(dir)
-    dir
+    try
+        mkdir(dir)
+        dir
+    catch
+        getresultdir(config, i + 1)
+    end
 end
 
 openlog(logfile) = open(logfile, "a")
